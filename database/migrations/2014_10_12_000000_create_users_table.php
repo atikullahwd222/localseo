@@ -24,7 +24,7 @@ return new class extends Migration
             $table->string('country')->default("Bangladesh");
             $table->string('phone')->nullable();
             $table->string('role')->default('user');
-            $table->string('status')->default('active');
+            $table->string('status')->default('inactive');
             $table->string('password');
             $table->rememberToken();
             $table->timestamps();
