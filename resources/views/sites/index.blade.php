@@ -27,7 +27,15 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-
+                                        <tr id="loading-spinner" style="display: none;">
+                                            <td colspan="5" class="text-center">
+                                                <div class="d-flex justify-content-center align-items-center py-4">
+                                                    <div class="spinner-border text-primary" role="status">
+                                                        <span class="visually-hidden">Loading...</span>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -176,16 +184,26 @@
     @push('scripts')
         <script>
             $(document).ready(function() {
+                // Show loading spinner by default
+                $('#loading-spinner').show();
 
-                fetchSites();
+                function showLoading() {
+                    $('tbody tr:not(#loading-spinner)').hide();
+                    $('#loading-spinner').show();
+                }
+
+                function hideLoading() {
+                    $('#loading-spinner').hide();
+                }
 
                 function fetchSites() {
+                    showLoading();
                     $.ajax({
                         type: "GET",
                         url: "{{ route('sites.fetch') }}",
                         dataType: "json",
                         success: function(response) {
-                            $('tbody').html("");
+                            $('tbody tr:not(#loading-spinner)').remove();
                             $.each(response.sites, function(index, site) {
                                 $('tbody').append(`
                                     <tr>
@@ -196,26 +214,131 @@
                                         <td>
                                             <div class="btn-group" role="group" aria-label="Basic example">
                                                 <button type="button" value="${site.id}" class="btn btn-primary edit-btn"><i class='bx bxs-edit' ></i></button>
-                                                <button type="button" class="btn btn-danger"><i class='bx bxs-trash'></i></button>
+                                                <button type="button" value="${site.id}" class="btn btn-danger delete-btn"><i class='bx bxs-trash'></i></button>
                                             </div>
                                         </td>
                                     </tr>
                                 `);
                             });
+                            hideLoading();
                         },
                         error: function(xhr) {
                             console.error("Error fetching sites:", xhr);
+                            hideLoading();
+                            Swal.fire({
+                                title: 'Error!',
+                                text: 'Failed to load sites. Please refresh the page.',
+                                icon: 'error',
+                                allowOutsideClick: true,
+                                showConfirmButton: true
+                            });
                         }
                     });
                 }
 
+                // Initial fetch
+                fetchSites();
+
+                // Add loading state to delete action
+                $('tbody').on('click', '.delete-btn', function(e) {
+                    e.preventDefault();
+                    var siteId = $(this).val();
+                    var deleteButton = $(this);
+
+                    Swal.fire({
+                        title: 'Are you sure?',
+                        text: "You won't be able to revert this!",
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonColor: '#3085d6',
+                        cancelButtonColor: '#d33',
+                        confirmButtonText: 'Yes, delete it!'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            // Disable the delete button and show loading state
+                            deleteButton.prop('disabled', true).html(
+                                '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>'
+                                );
+
+                            $.ajax({
+                                type: "DELETE",
+                                url: "{{ route('sites.destroy', '') }}/" + siteId,
+                                data: {
+                                    '_token': $('meta[name="csrf-token"]').attr('content')
+                                },
+                                success: function(response) {
+                                    deleteButton.prop('disabled', false).html(
+                                        '<i class="bx bxs-trash"></i>');
+                                    if (response.status === 200) {
+                                        Swal.fire({
+                                            title: 'Deleted!',
+                                            text: response.message ||
+                                                'Site has been deleted.',
+                                            icon: 'success',
+                                            allowOutsideClick: true,
+                                            showConfirmButton: true,
+                                            didOpen: () => {
+                                                const popup = Swal.getPopup();
+                                                popup.setAttribute('draggable',
+                                                    'true');
+                                            }
+                                        }).then(() => {
+                                            fetchSites();
+                                        });
+                                    } else {
+                                        Swal.fire({
+                                            title: 'Error!',
+                                            text: response.message ||
+                                                'Failed to delete site.',
+                                            icon: 'error',
+                                            allowOutsideClick: true,
+                                            showConfirmButton: true,
+                                            didOpen: () => {
+                                                const popup = Swal.getPopup();
+                                                popup.setAttribute('draggable',
+                                                    'true');
+                                            }
+                                        });
+                                    }
+                                },
+                                error: function(xhr) {
+                                    deleteButton.prop('disabled', false).html(
+                                        '<i class="bx bxs-trash"></i>');
+                                    Swal.fire({
+                                        title: 'Error!',
+                                        text: xhr.responseJSON?.message ||
+                                            'Something went wrong!',
+                                        icon: 'error',
+                                        allowOutsideClick: true,
+                                        showConfirmButton: true,
+                                        didOpen: () => {
+                                            const popup = Swal.getPopup();
+                                            popup.setAttribute('draggable',
+                                                'true');
+                                        }
+                                    });
+                                }
+                            });
+                        }
+                    });
+                });
+
+                // Add loading state to edit action
                 $('tbody').on('click', '.edit-btn', function(e) {
                     e.preventDefault();
                     var siteId = $(this).val();
+                    var editButton = $(this);
+
+                    // Disable the edit button and show loading state
+                    editButton.prop('disabled', true).html(
+                        '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>'
+                        );
+
                     $.ajax({
                         type: "GET",
                         url: "{{ route('sites.edit', '') }}/" + siteId,
                         success: function(response) {
+                            editButton.prop('disabled', false).html('<i class="bx bxs-edit"></i>');
                             if (response.status === 200) {
                                 $('#EditModal').modal('show');
                                 $('#edit_id').val(response.site.id);
@@ -239,6 +362,16 @@
                                     }
                                 });
                             }
+                        },
+                        error: function(xhr) {
+                            editButton.prop('disabled', false).html('<i class="bx bxs-edit"></i>');
+                            Swal.fire({
+                                title: "Error!",
+                                text: "Failed to load site details.",
+                                icon: "error",
+                                allowOutsideClick: true,
+                                showConfirmButton: true
+                            });
                         }
                     });
                 });
@@ -278,7 +411,7 @@
                                 }).then(() => {
                                     fetchSites();
                                 });
-                            } else if(response.status === 200){
+                            } else if (response.status === 200) {
                                 Swal.fire({
                                     title: "Site Updated Failed!",
                                     text: response.message || "Site Not found.",

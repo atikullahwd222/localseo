@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SitesController;
+use App\Http\Controllers\SessionController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -37,6 +38,16 @@ Route::middleware(['auth', 'check.status'])->group(function () {
     Route::get('/sites/edit/{id}', [SitesController::class, 'editSite'])->name('sites.edit');
     Route::put('/sites/{id}', [SitesController::class, 'updateSite'])->name('sites.update');
     Route::delete('/sites/{id}', [SitesController::class, 'destroySite'])->name('sites.destroy');
+
+
+    Route::get('/sites/type', [SitesController::class, 'typeInex'])->name('type.index');
+});
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/sessions/active', [SessionController::class, 'getActiveSessions'])->name('sessions.active');
+    Route::post('/sessions/terminate/{sessionId}', [SessionController::class, 'terminate'])
+         ->name('sessions.terminate')
+         ->middleware('admin');
 });
 
 require __DIR__.'/auth.php';

@@ -45,7 +45,11 @@ class LoginRequest extends FormRequest
         
         // Check if user exists and is active
         $user = \App\Models\User::where('email', $credentials['email'])->first();
-        if ($user && $user->status !== 'active') {
+        if ($user && $user->status === 'deleterequest') {
+            throw ValidationException::withMessages([
+                'email' => 'Your profile is pending deletion and cannot be used for login.',
+            ]);
+        } elseif ($user && $user->status !== 'active') {
             throw ValidationException::withMessages([
                 'email' => 'Your account is inactive. Please contact the administrator.',
             ]);

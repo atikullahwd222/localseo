@@ -102,4 +102,21 @@ class SitesController extends Controller
             ]);
         }
     }
+
+    public function destroySite($id)
+    {
+        $site = Sites::findOrFail($id);
+        if ($site) {
+            $site->delete();
+            return response()->json([
+                'status' => 200,
+                'message' => 'Site deleted successfully!',
+            ]);
+        } else {
+            return response()->json([
+                'status' => 404,
+                'message' => 'Site not found',
+            ]);
+        }
+    }
 }

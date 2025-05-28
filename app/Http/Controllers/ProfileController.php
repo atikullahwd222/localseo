@@ -64,7 +64,7 @@ class ProfileController extends Controller
     /**
      * Update the user's profile information.
      */
-    public function update(ProfileUpdateRequest $request): RedirectResponse
+    public function update(ProfileUpdateRequest $request)
     {
         $request->user()->fill($request->validated());
 
@@ -74,26 +74,41 @@ class ProfileController extends Controller
 
         $request->user()->save();
 
+        if ($request->wantsJson()) {
+            return response()->json([
+                'message' => 'Profile updated successfully',
+                'user' => $request->user()
+            ]);
+        }
+
         return Redirect::route('profile.edit')->with('status', 'profile-updated');
     }
 
     /**
-     * Delete the user's account.
+     * Mark the user's account as pending deletion.
      */
-    public function destroy(Request $request): RedirectResponse
+    public function destroy(Request $request)
     {
         $request->validateWithBag('userDeletion', [
             'password' => ['required', 'current_password'],
         ]);
 
         $user = $request->user();
+        
+        // Set status to deleterequest instead of actually deleting
+        $user->status = 'deleterequest';
+        $user->save();
 
         Auth::logout();
 
-        $user->delete();
-
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+        
+        if ($request->wantsJson()) {
+            return response()->json([
+                'message' => 'Your account has been marked for deletion. An administrator will review your request.'
+            ]);
+        }
 
         return Redirect::to('/');
     }

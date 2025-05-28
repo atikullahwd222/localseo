@@ -30,6 +30,8 @@ class User extends Authenticatable
         'role',
         'status',
         'password',
+        'last_login_at',
+        'last_login_ip',
     ];
 
     /**
@@ -50,5 +52,16 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'last_login_at' => 'datetime',
     ];
+
+    /**
+     * Update user's last login information
+     */
+    public function updateLastLogin()
+    {
+        $this->last_login_at = now();
+        $this->last_login_ip = request()->ip();
+        $this->save();
+    }
 }

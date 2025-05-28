@@ -92,7 +92,10 @@
                             </div>
                         </div>
                         <div class="mt-2">
-                            <button type="submit" class="btn btn-primary me-2">Save changes</button>
+                            <button type="submit" class="btn btn-primary me-2" id="saveProfileBtn">
+                                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true" id="profileSpinner"></span>
+                                <span id="saveButtonText">Save changes</span>
+                            </button>
                             <button type="reset" class="btn btn-outline-secondary">Cancel</button>
                         </div>
                     </form>
@@ -104,6 +107,8 @@
 @endsection
 
 @push('scripts')
+<!-- Include SweetAlert -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Reset photo button
@@ -129,6 +134,79 @@ document.addEventListener('DOMContentLoaded', function() {
                 };
                 reader.readAsDataURL(e.target.files[0]);
             }
+        });
+    }
+
+    // AJAX form submission for profile update
+    const profileForm = document.getElementById('formAccountSettings');
+    if (profileForm) {
+        profileForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Show spinner
+            const spinner = document.getElementById('profileSpinner');
+            const saveButtonText = document.getElementById('saveButtonText');
+            const saveButton = document.getElementById('saveProfileBtn');
+            
+            spinner.classList.remove('d-none');
+            saveButtonText.textContent = 'Saving...';
+            saveButton.disabled = true;
+            
+            const formData = new FormData(profileForm);
+            
+            fetch(profileForm.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                credentials: 'same-origin'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Show success message using SweetAlert
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Success!',
+                    text: data.message || 'Profile updated successfully',
+                    timer: 3000,
+                    showConfirmButton: false
+                });
+                
+                // Update form values if needed
+                if (data.user) {
+                    document.getElementById('name').value = data.user.name;
+                    document.getElementById('email').value = data.user.email;
+                    document.getElementById('phone').value = data.user.phone || '';
+                    document.getElementById('address').value = data.user.address || '';
+                    document.getElementById('city').value = data.user.city || '';
+                    document.getElementById('state').value = data.user.state || '';
+                    document.getElementById('post_code').value = data.user.post_code || '';
+                    document.getElementById('country').value = data.user.country || '';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                // Show error message using SweetAlert
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: 'An error occurred while updating your profile. Please try again.',
+                });
+            })
+            .finally(() => {
+                // Hide spinner
+                spinner.classList.add('d-none');
+                saveButtonText.textContent = 'Save changes';
+                saveButton.disabled = false;
+            });
         });
     }
 });
