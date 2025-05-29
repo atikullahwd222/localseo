@@ -109,85 +109,125 @@ class SitesController extends Controller
 
     public function fetchSite(Request $request)
     {
-        // Start with a base query
-        $query = Sites::with(['categories', 'countries', 'workPurposes', 'features']);
-        
-        // Filter by categories if specified
-        if ($request->has('categories') && is_array($request->categories) && count($request->categories) > 0) {
-            $query->whereHas('categories', function($q) use ($request) {
-                $q->whereIn('site_categories.id', $request->categories);
-            });
-        }
-        
-        // Filter by countries, now handling both global and specific countries
-        $hasCountryFilter = false;
-        
-        // Include global sites if global flag is set
-        if ($request->input('is_global') == 1) {
-            $hasGlobalQuery = clone $query;
-            $hasGlobalQuery->whereHas('countries', function($q) {
-                $q->where('is_global', true);
-            });
-            $hasCountryFilter = true;
-        }
-        
-        // Include sites for specific countries if countries are selected
-        if ($request->has('countries') && is_array($request->countries) && count($request->countries) > 0) {
-            if (isset($hasGlobalQuery)) {
-                // We have both global and specific countries, use a separate query for countries
-                $hasCountryQuery = clone $query;
-                $hasCountryQuery->whereHas('countries', function($q) use ($request) {
-                    $q->whereIn('countries.id', $request->countries);
-                });
-                
-                // Merge the results with global query using union
-                $query = $hasGlobalQuery->union($hasCountryQuery);
-            } else {
-                // Just filter by countries
-                $query->whereHas('countries', function($q) use ($request) {
-                    $q->whereIn('countries.id', $request->countries);
+        try {
+            // Start with a base query
+            $query = Sites::with(['categories', 'countries', 'workPurposes', 'features']);
+            
+            // Filter by categories if specified
+            if ($request->has('categories') && is_array($request->categories) && count($request->categories) > 0) {
+                $query->whereHas('categories', function($q) use ($request) {
+                    $q->whereIn('site_categories.id', $request->categories);
                 });
             }
-            $hasCountryFilter = true;
-        } else if (isset($hasGlobalQuery)) {
-            // If we only have global filter
-            $query = $hasGlobalQuery;
-        }
-        
-        // Filter by work purposes
-        if ($request->has('purposes') && is_array($request->purposes) && count($request->purposes) > 0) {
-            $query->whereHas('workPurposes', function($q) use ($request) {
-                $q->whereIn('work_purposes.id', $request->purposes);
+            
+            // Filter by countries, now handling both global and specific countries
+            $hasCountryFilter = false;
+            
+            // Include global sites if global flag is set
+            if ($request->input('is_global') == 1) {
+                // Create a query for global sites
+                $globalQuery = Sites::with(['categories', 'countries', 'workPurposes', 'features'])
+                    ->whereHas('countries', function($q) {
+                        $q->where('is_global', true);
+                    });
+                
+                // Apply same category filter if it was specified
+                if ($request->has('categories') && is_array($request->categories) && count($request->categories) > 0) {
+                    $globalQuery->whereHas('categories', function($q) use ($request) {
+                        $q->whereIn('site_categories.id', $request->categories);
+                    });
+                }
+                
+                $hasCountryFilter = true;
+                $hasGlobalQuery = $globalQuery;
+            }
+            
+            // Include sites for specific countries if countries are selected
+            if ($request->has('countries') && is_array($request->countries) && count($request->countries) > 0) {
+                if (isset($hasGlobalQuery)) {
+                    // We have both global and specific countries
+                    // Create a new query for country-specific sites
+                    $countryQuery = Sites::with(['categories', 'countries', 'workPurposes', 'features'])
+                        ->whereHas('countries', function($q) use ($request) {
+                            $q->whereIn('countries.id', $request->countries);
+                        });
+                    
+                    // Apply same category filter if it was specified
+                    if ($request->has('categories') && is_array($request->categories) && count($request->categories) > 0) {
+                        $countryQuery->whereHas('categories', function($q) use ($request) {
+                            $q->whereIn('site_categories.id', $request->categories);
+                        });
+                    }
+                    
+                    // Get IDs from both queries
+                    $globalIds = $hasGlobalQuery->pluck('id')->toArray();
+                    $countryIds = $countryQuery->pluck('id')->toArray();
+                    
+                    // Combine the IDs and create a new query to get the sites
+                    $combinedIds = array_unique(array_merge($globalIds, $countryIds));
+                    $query = Sites::with(['categories', 'countries', 'workPurposes', 'features'])
+                        ->whereIn('id', $combinedIds);
+                } else {
+                    // Just filter by countries
+                    $query->whereHas('countries', function($q) use ($request) {
+                        $q->whereIn('countries.id', $request->countries);
+                    });
+                }
+                $hasCountryFilter = true;
+            } else if (isset($hasGlobalQuery)) {
+                // If we only have global filter
+                $query = $hasGlobalQuery;
+            }
+            
+            // Filter by work purposes
+            if ($request->has('purposes') && is_array($request->purposes) && count($request->purposes) > 0) {
+                $query->whereHas('workPurposes', function($q) use ($request) {
+                    $q->whereIn('work_purposes.id', $request->purposes);
+                });
+            }
+            
+            // Filter by minimum rating
+            if ($request->has('min_rating') && is_numeric($request->min_rating) && $request->min_rating > 0) {
+                $query->where('rating', '>=', $request->min_rating);
+            }
+            
+            // Sort by rating if requested
+            if ($request->input('sort_by_rating') == 1) {
+                $query->orderByDesc('rating');
+            } else {
+                $query->orderBy('name');
+            }
+            
+            // Execute query
+            $sites = $query->get();
+            
+            // Transform each site to include simplified relationship data
+            $sites = $sites->map(function ($site) {
+                $siteData = $site->toArray();
+                $siteData['categories_list'] = $site->categories->pluck('name')->join(', ');
+                $siteData['is_global'] = $site->isGlobal();
+                $siteData['countries_list'] = $site->countryList();
+                $siteData['purposes_list'] = $site->workPurposes->pluck('name')->join(', ');
+                return $siteData;
             });
+
+            // Return AJAX response with sites data
+            return response()->json([
+                'success' => true,
+                'sites' => $sites,
+                'count' => $sites->count()
+            ]);
+        } catch (\Exception $e) {
+            // Log the exception
+            \Log::error('Error in fetchSite: ' . $e->getMessage() . ' - ' . $e->getTraceAsString());
+            
+            // Return error response
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while fetching sites: ' . $e->getMessage(),
+                'sites' => []
+            ], 500);
         }
-        
-        // Filter by minimum rating
-        if ($request->has('min_rating') && is_numeric($request->min_rating) && $request->min_rating > 0) {
-            $query->where('rating', '>=', $request->min_rating);
-        }
-        
-        // Sort by rating if requested
-        if ($request->input('sort_by_rating') == 1) {
-            $query->orderByDesc('rating');
-        } else {
-            $query->orderBy('name');
-        }
-        
-        $sites = $query->get();
-        
-        // Transform each site to include simplified relationship data
-        $sites = $sites->map(function ($site) {
-            $siteData = $site->toArray();
-            $siteData['categories_list'] = $site->categories->pluck('name')->join(', ');
-            $siteData['is_global'] = $site->isGlobal();
-            $siteData['countries_list'] = $site->countryList();
-            $siteData['purposes_list'] = $site->workPurposes->pluck('name')->join(', ');
-            return $siteData;
-        });
-        
-        return response()->json([
-            'sites' => $sites,
-        ]);
     }
 
     public function editSite($id)
@@ -337,66 +377,152 @@ class SitesController extends Controller
      */
     public function getCompatibleOptions(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'categories' => 'required|array',
-            'categories.*' => 'exists:site_categories,id',
-            'option_type' => 'required|in:countries,purposes,features',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => 400,
-                'errors' => $validator->messages(),
+        try {
+            $validator = Validator::make($request->all(), [
+                'categories' => 'required|array',
+                'categories.*' => 'exists:site_categories,id',
+                'option_type' => 'nullable|in:countries,purposes,features,all',
+                'option_types' => 'nullable|array',
+                'option_types.*' => 'in:countries,purposes,features',
             ]);
-        }
 
-        $categories = SiteCategory::whereIn('id', $request->categories)->get();
-        $compatibleOptions = [];
-        
-        // If no categories found, return empty array
-        if ($categories->isEmpty()) {
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->messages(),
+                ], 422);
+            }
+
+            $categories = SiteCategory::whereIn('id', $request->categories)->get();
+            $result = [];
+            
+            // If no categories found, return empty arrays
+            if ($categories->isEmpty()) {
+                return response()->json([
+                    'success' => true,
+                    'countries' => [],
+                    'purposes' => [],
+                    'features' => [],
+                    'message' => 'No categories found with the provided IDs'
+                ]);
+            }
+            
+            // Handle combined request with option_types array
+            if ($request->has('option_types') && is_array($request->option_types)) {
+                // Get all required data in a single operation for better performance
+                $typesToGet = $request->option_types;
+                
+                // Include all options if 'all' is requested
+                if (in_array('all', $typesToGet)) {
+                    $typesToGet = ['countries', 'purposes', 'features'];
+                }
+                
+                foreach ($typesToGet as $type) {
+                    switch ($type) {
+                        case 'countries':
+                            $result['countries'] = $this->getCompatibleCountries($categories);
+                            break;
+                        case 'purposes':
+                            $result['purposes'] = $this->getCompatiblePurposes($categories);
+                            break;
+                        case 'features':
+                            $result['features'] = $this->getCompatibleFeatures($categories);
+                            break;
+                    }
+                }
+                
+                return response()->json(array_merge(['success' => true], $result));
+            }
+            
+            // Handle single option type request or 'all'
+            $option_type = $request->input('option_type', 'all');
+            
+            if ($option_type === 'all') {
+                return response()->json([
+                    'success' => true,
+                    'countries' => $this->getCompatibleCountries($categories),
+                    'purposes' => $this->getCompatiblePurposes($categories),
+                    'features' => $this->getCompatibleFeatures($categories),
+                ]);
+            }
+            
+            switch ($option_type) {
+                case 'countries':
+                    $compatibleOptions = $this->getCompatibleCountries($categories);
+                    break;
+                    
+                case 'purposes':
+                    $compatibleOptions = $this->getCompatiblePurposes($categories);
+                    break;
+                    
+                case 'features':
+                    $compatibleOptions = $this->getCompatibleFeatures($categories);
+                    break;
+                    
+                default:
+                    $compatibleOptions = [];
+            }
+            
             return response()->json([
-                'compatible_options' => [],
+                'success' => true,
+                'compatible_options' => $compatibleOptions,
             ]);
+        } catch (\Exception $e) {
+            // Log the error
+            \Log::error('Error in getCompatibleOptions: ' . $e->getMessage() . ' - ' . $e->getTraceAsString());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+    
+    /**
+     * Get countries compatible with all selected categories
+     */
+    private function getCompatibleCountries($categories)
+    {
+        $query = Country::query();
+        
+        foreach ($categories as $category) {
+            $query->whereHas('compatibleCategories', function ($q) use ($category) {
+                $q->where('site_categories.id', $category->id);
+            });
         }
         
-        switch ($request->option_type) {
-            case 'countries':
-                // Get countries that are compatible with ALL selected categories
-                $query = Country::query();
-                foreach ($categories as $category) {
-                    $query->whereHas('compatibleCategories', function ($q) use ($category) {
-                        $q->where('site_categories.id', $category->id);
-                    });
-                }
-                $compatibleOptions = $query->pluck('id')->toArray();
-                break;
-                
-            case 'purposes':
-                // Get purposes that are compatible with ALL selected categories
-                $query = WorkPurpose::query();
-                foreach ($categories as $category) {
-                    $query->whereHas('compatibleCategories', function ($q) use ($category) {
-                        $q->where('site_categories.id', $category->id);
-                    });
-                }
-                $compatibleOptions = $query->pluck('id')->toArray();
-                break;
-                
-            case 'features':
-                // Get features that are compatible with ALL selected categories
-                $query = SiteFeature::query();
-                foreach ($categories as $category) {
-                    $query->whereHas('compatibleCategories', function ($q) use ($category) {
-                        $q->where('site_categories.id', $category->id);
-                    });
-                }
-                $compatibleOptions = $query->pluck('id')->toArray();
-                break;
+        return $query->pluck('id')->toArray();
+    }
+    
+    /**
+     * Get work purposes compatible with all selected categories
+     */
+    private function getCompatiblePurposes($categories) 
+    {
+        $query = WorkPurpose::query();
+        
+        foreach ($categories as $category) {
+            $query->whereHas('compatibleCategories', function ($q) use ($category) {
+                $q->where('site_categories.id', $category->id);
+            });
         }
         
-        return response()->json([
-            'compatible_options' => $compatibleOptions,
-        ]);
+        return $query->pluck('id')->toArray();
+    }
+    
+    /**
+     * Get features compatible with all selected categories
+     */
+    private function getCompatibleFeatures($categories)
+    {
+        $query = SiteFeature::query();
+        
+        foreach ($categories as $category) {
+            $query->whereHas('compatibleCategories', function ($q) use ($category) {
+                $q->where('site_categories.id', $category->id);
+            });
+        }
+        
+        return $query->pluck('id')->toArray();
     }
 }

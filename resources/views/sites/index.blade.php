@@ -210,10 +210,12 @@
                                     <button id="copyToExcel" class="btn btn-success me-2 d-none">
                                         <i class="fas fa-file-excel me-1"></i> Copy to Excel
                                     </button>
-                                <a href="#" data-bs-toggle="modal" data-bs-target="#AddSiteModal"
-                                    class="btn btn-primary">
-                                    <i class="fas fa-plus me-2"></i> Add New Site
-                                </a>
+                                    @if(auth()->user()->canManageSites())
+                                    <a href="#" data-bs-toggle="modal" data-bs-target="#AddSiteModal"
+                                        class="btn btn-primary">
+                                        <i class="fas fa-plus me-2"></i> Add New Site
+                                    </a>
+                                    @endif
                                 </div>
                             </div>
 
@@ -822,8 +824,38 @@
                     // Show sites table and hide no filters message
                     $('#noFiltersMessage').addClass('d-none');
                     $('#sitesTableContainer').removeClass('d-none');
+                    $('#no-results').addClass('d-none'); // Hide no results message at start
                     
                     showLoading();
+                    
+                    // Debug info in console
+                    console.log('Fetching sites with filters:', {
+                        categories: categories,
+                        is_global: isGlobal,
+                        countries: countries,
+                        purposes: purposes,
+                        min_rating: minRating,
+                        sort_by_rating: sortByRating
+                    });
+                    
+                    // Create a debug message to show on the page
+                    const debugInfoHtml = `
+                        <div id="debug-info" class="alert alert-info mb-3">
+                            <small>
+                                <strong>Debug Info:</strong><br>
+                                Categories: ${categories.length ? categories.join(', ') : 'None'}<br>
+                                Global: ${isGlobal ? 'Yes' : 'No'}<br>
+                                Countries: ${countries.length ? countries.join(', ') : 'None'}<br>
+                                Purposes: ${purposes.length ? purposes.join(', ') : 'None'}<br>
+                                Min Rating: ${minRating}<br>
+                                Sort by Rating: ${sortByRating ? 'Yes' : 'No'}
+                            </small>
+                            <button class="btn-close btn-sm float-end" onclick="$('#debug-info').remove()"></button>
+                        </div>
+                    `;
+                    
+                    // Show debug info at the top of the sites table
+                    $('#sitesTableContainer').prepend(debugInfoHtml);
                     
                     $.ajax({
                         type: "GET",
@@ -838,12 +870,24 @@
                         },
                         dataType: "json",
                         success: function(response) {
+                            console.log('Response received:', response); // Debug log
+                            
+                            // Remove existing site rows
                             $('tbody tr:not(#loading-spinner, #no-results)').remove();
                             
-                            if (response.sites.length === 0) {
+                            if (!response.sites || response.sites.length === 0) {
                                 hideLoading();
                                 $('#no-results').removeClass('d-none');
                                 $('#copyToExcel').addClass('d-none');
+                                
+                                // Add message about no results matching the filters
+                                $('#no-results td').html(`
+                                    <div class="text-center py-4">
+                                        <i class="fas fa-search fa-2x text-muted mb-3"></i>
+                                        <h5 class="text-muted">No matching sites found</h5>
+                                        <p class="text-muted">Try adjusting your filter criteria</p>
+                                    </div>
+                                `);
                                 return;
                             }
                             
@@ -861,18 +905,31 @@
                                     ratingClass = 'text-danger';
                                 }
                                 
+                                // Safely handle null or undefined values
+                                const siteName = site.name || 'Unnamed';
+                                const siteUrl = site.url || '#';
+                                const siteStatus = site.status || 'unknown';
+                                const siteRating = typeof site.rating === 'number' ? site.rating.toFixed(1) : '0.0';
+                                const siteMaxRating = site.max_rating || 10;
+                                const categoriesList = site.categories_list || 'None';
+                                const countriesList = site.countries_list || 'None';
+                                
                                 $('tbody').append(`
                                     <tr>
-                                        <td>${site.name}</td>
-                                        <td>${site.url}</td>
-                                        <td>${site.status}</td>
-                                        <td class="${ratingClass}">${site.rating.toFixed(1)} / ${site.max_rating}</td>
-                                        <td>${site.categories_list || 'None'}</td>
-                                        <td>${site.countries_list || 'None'}</td>
+                                        <td>${siteName}</td>
+                                        <td>${siteUrl}</td>
+                                        <td>${siteStatus}</td>
+                                        <td class="${ratingClass}">${siteRating} / ${siteMaxRating}</td>
+                                        <td>${categoriesList}</td>
+                                        <td>${countriesList}</td>
                                         <td>
                                             <div class="btn-group" role="group" aria-label="Basic example">
-                                                <button type="button" value="${site.id}" class="btn btn-primary edit-btn"><i class='bx bxs-edit' ></i></button>
+                                                @if(auth()->user()->canManageSites())
+                                                <button type="button" value="${site.id}" class="btn btn-primary edit-btn"><i class='bx bxs-edit'></i></button>
                                                 <button type="button" value="${site.id}" class="btn btn-danger delete-btn"><i class='bx bxs-trash'></i></button>
+                                                @else
+                                                <button type="button" class="btn btn-secondary" disabled><i class='bx bxs-lock'></i></button>
+                                                @endif
                                             </div>
                                         </td>
                                     </tr>
@@ -880,19 +937,45 @@
                             });
                             hideLoading();
                         },
-                        error: function(xhr) {
-                            console.error("Error fetching sites:", xhr);
+                        error: function(xhr, status, error) {
+                            console.error("Error fetching sites:", xhr.responseText, status, error);
                             hideLoading();
                             $('#no-results').removeClass('d-none');
                             
+                            // Show detailed error in the no-results element
+                            let errorMessage = 'Failed to load sites';
+                            let detailMessage = '';
+                            
+                            try {
+                                const responseObj = JSON.parse(xhr.responseText);
+                                if (responseObj && responseObj.message) {
+                                    detailMessage = responseObj.message;
+                                }
+                            } catch(e) {
+                                detailMessage = `${error}: ${xhr.responseText || 'Unknown error'}`;
+                            }
+                            
+                            // Display the error in the no-results area
+                            $('#no-results td').html(`
+                                <div class="text-center py-4">
+                                    <i class="fas fa-exclamation-triangle fa-2x text-danger mb-3"></i>
+                                    <h5 class="text-danger">Error Loading Sites</h5>
+                                    <p class="text-muted">${detailMessage}</p>
+                                    <button class="btn btn-sm btn-outline-primary mt-2" onclick="$('#resetFilters').click()">
+                                        Reset Filters
+                                    </button>
+                                </div>
+                            `);
+                            
                             Swal.fire({
                                 title: 'Error!',
-                                text: 'Failed to load sites. Please try again.',
+                                text: errorMessage + '. ' + detailMessage,
                                 icon: 'error',
                                 allowOutsideClick: true,
                                 showConfirmButton: true
                             });
-                        }
+                        },
+                        timeout: 20000 // 20 second timeout to prevent infinite loading
                     });
                 }
 
@@ -976,73 +1059,88 @@
                     // Show compatibility notes
                     $('#countryCompatibilityNoteAdd, #purposeCompatibilityNoteAdd, #featureCompatibilityNoteAdd').removeClass('d-none');
                     
-                    // Get compatible options via AJAX
+                    // Show loading indicator
+                    const loadingHtml = '<div class="text-center my-2"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> <small class="text-muted">Loading compatible options...</small></div>';
+                    $('#selectedCategoriesBadgesAddForm').append(loadingHtml);
+                    
+                    // Add debug info to console
+                    console.log('Fetching compatible options for categories:', selectedCategories);
+                    
+                    // Batch all requests into a single AJAX call to improve performance
                     $.ajax({
                         type: "GET",
                         url: "{{ route('sites.compatible-options') }}",
                         data: {
                             categories: selectedCategories,
-                            option_type: 'countries'
+                            option_types: ['countries', 'purposes', 'features']
                         },
                         dataType: "json",
                         success: function(response) {
-                            // Reset all countries
-                            $('.add-country').prop('checked', false).closest('.form-check').addClass('unsupported-option');
+                            // Remove loading indicator
+                            $('#selectedCategoriesBadgesAddForm .spinner-border').parent().remove();
                             
-                            // Enable compatible countries
-                            if (response.compatible_options) {
-                                response.compatible_options.forEach(function(countryId) {
+                            console.log('Compatible options response:', response);
+                            
+                            if (!response.success) {
+                                // Show error message
+                                const errorMsg = $('<div class="alert alert-danger py-1 px-2 mt-1" style="font-size: 0.8rem;"><i class="fas fa-exclamation-triangle"></i> Error loading compatibility data</div>');
+                                $('#selectedCategoriesBadgesAddForm').append(errorMsg);
+                                
+                                // If error, show all options rather than none
+                                $('.add-country, .add-purpose, .add-feature').closest('.form-check').removeClass('unsupported-option');
+                                
+                                setTimeout(() => {
+                                    errorMsg.fadeOut(300, function() { $(this).remove(); });
+                                }, 3000);
+                                
+                                return;
+                            }
+                            
+                            // Reset all checkboxes
+                            $('.add-country, .add-purpose, .add-feature').prop('checked', false).closest('.form-check').addClass('unsupported-option');
+                            
+                            // Process countries
+                            if (response.countries && response.countries.length > 0) {
+                                response.countries.forEach(function(countryId) {
                                     $(`#country${countryId}`).closest('.form-check').removeClass('unsupported-option');
                                 });
                             }
-                        }
-                    });
-                    
-                    // Get compatible work purposes
-                    $.ajax({
-                        type: "GET",
-                        url: "{{ route('sites.compatible-options') }}",
-                        data: {
-                            categories: selectedCategories,
-                            option_type: 'purposes'
-                        },
-                        dataType: "json",
-                        success: function(response) {
-                            // Reset all purposes
-                            $('.add-purpose').prop('checked', false).closest('.form-check').addClass('unsupported-option');
                             
-                            // Enable compatible purposes
-                            if (response.compatible_options) {
-                                response.compatible_options.forEach(function(purposeId) {
+                            // Process work purposes
+                            if (response.purposes && response.purposes.length > 0) {
+                                response.purposes.forEach(function(purposeId) {
                                     $(`#purpose${purposeId}`).closest('.form-check').removeClass('unsupported-option');
                                 });
                             }
-                        }
-                    });
-                    
-                    // Get compatible features
-                    $.ajax({
-                        type: "GET",
-                        url: "{{ route('sites.compatible-options') }}",
-                        data: {
-                            categories: selectedCategories,
-                            option_type: 'features'
-                        },
-                        dataType: "json",
-                        success: function(response) {
-                            // Reset all features
-                            $('.add-feature').prop('checked', false).closest('.form-check').addClass('unsupported-option');
                             
-                            // Enable compatible features
-                            if (response.compatible_options) {
-                                response.compatible_options.forEach(function(featureId) {
+                            // Process features
+                            if (response.features && response.features.length > 0) {
+                                response.features.forEach(function(featureId) {
                                     $(`#feature${featureId}`).closest('.form-check').removeClass('unsupported-option');
                                 });
                             }
                             
                             // Update rating after features change
                             updateRating();
-                        }
+                        },
+                        error: function(xhr, status, error) {
+                            // Remove loading indicator
+                            $('#selectedCategoriesBadgesAddForm .spinner-border').parent().remove();
+                            
+                            console.error('Compatible options error:', error, xhr.responseText);
+                            
+                            // Show error message that disappears after 3 seconds
+                            const errorMsg = $('<div class="alert alert-danger py-1 px-2 mt-1 mb-0" style="font-size: 0.8rem;"><i class="fas fa-exclamation-triangle"></i> Error loading compatibility data</div>');
+                            $('#selectedCategoriesBadgesAddForm').append(errorMsg);
+                            
+                            // If error, show all options rather than none
+                            $('.add-country, .add-purpose, .add-feature').closest('.form-check').removeClass('unsupported-option');
+                            
+                            setTimeout(() => {
+                                errorMsg.fadeOut(300, function() { $(this).remove(); });
+                            }, 3000);
+                        },
+                        timeout: 15000 // 15 second timeout to prevent infinite loading
                     });
                 }
 
@@ -1171,86 +1269,66 @@
                     // Show compatibility notes
                     $('#countryCompatibilityNoteEdit, #purposeCompatibilityNoteEdit, #featureCompatibilityNoteEdit').removeClass('d-none');
                     
-                    // Get compatible options via AJAX
+                    // Show loading indicator
+                    const loadingHtml = '<div class="text-center my-2"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> <small class="text-muted">Loading compatible options...</small></div>';
+                    $('#selectedCategoriesBadgesEditForm').append(loadingHtml);
+                    
+                    // Batch all requests into a single AJAX call to improve performance
                     $.ajax({
                         type: "GET",
                         url: "{{ route('sites.compatible-options') }}",
                         data: {
                             categories: selectedCategories,
-                            option_type: 'countries'
+                            option_types: ['countries', 'purposes', 'features']
                         },
                         dataType: "json",
                         success: function(response) {
-                            // Mark incompatible countries
-                            $('.edit-country').closest('.form-check').addClass('unsupported-option');
+                            // Remove loading indicator
+                            $('#selectedCategoriesBadgesEditForm .spinner-border').parent().remove();
                             
-                            // Enable compatible countries
-                            if (response.compatible_options) {
-                                response.compatible_options.forEach(function(countryId) {
+                            console.log('Compatible options response:', response);
+                            
+                            if (!response.success) {
+                                // Show error message
+                                const errorMsg = $('<div class="alert alert-danger py-1 px-2 mt-1" style="font-size: 0.8rem;"><i class="fas fa-exclamation-triangle"></i> Error loading compatibility data</div>');
+                                $('#selectedCategoriesBadgesEditForm').append(errorMsg);
+                                
+                                // If error, show all options rather than none
+                                $('.edit-country, .edit-purpose, .edit-feature').closest('.form-check').removeClass('unsupported-option');
+                                
+                                setTimeout(() => {
+                                    errorMsg.fadeOut(300, function() { $(this).remove(); });
+                                }, 3000);
+                                
+                                return;
+                            }
+                            
+                            // Reset all checkboxes
+                            $('.edit-country, .edit-purpose, .edit-feature').prop('checked', false).closest('.form-check').addClass('unsupported-option');
+                            
+                            // Process countries
+                            if (response.countries && response.countries.length > 0) {
+                                response.countries.forEach(function(countryId) {
                                     $(`#edit_country${countryId}`).closest('.form-check').removeClass('unsupported-option');
                                 });
                             }
                             
-                            // Keep checked items checked, but disable incompatible ones that were checked
-                            $('.edit-country:checked').each(function() {
-                                if ($(this).closest('.form-check').hasClass('unsupported-option')) {
-                                    $(this).prop('checked', false);
-                                }
-                            });
-                        }
-                    });
-                    
-                    // Get compatible work purposes
-                    $.ajax({
-                        type: "GET",
-                        url: "{{ route('sites.compatible-options') }}",
-                        data: {
-                            categories: selectedCategories,
-                            option_type: 'purposes'
-                        },
-                        dataType: "json",
-                        success: function(response) {
-                            // Mark incompatible purposes
-                            $('.edit-purpose').closest('.form-check').addClass('unsupported-option');
-                            
-                            // Enable compatible purposes
-                            if (response.compatible_options) {
-                                response.compatible_options.forEach(function(purposeId) {
+                            // Process work purposes
+                            if (response.purposes && response.purposes.length > 0) {
+                                response.purposes.forEach(function(purposeId) {
                                     $(`#edit_purpose${purposeId}`).closest('.form-check').removeClass('unsupported-option');
                                 });
                             }
                             
-                            // Keep checked items checked, but disable incompatible ones that were checked
-                            $('.edit-purpose:checked').each(function() {
-                                if ($(this).closest('.form-check').hasClass('unsupported-option')) {
-                                    $(this).prop('checked', false);
-                                }
-                            });
-                        }
-                    });
-                    
-                    // Get compatible features
-                    $.ajax({
-                        type: "GET",
-                        url: "{{ route('sites.compatible-options') }}",
-                        data: {
-                            categories: selectedCategories,
-                            option_type: 'features'
-                        },
-                        dataType: "json",
-                        success: function(response) {
-                            // Mark incompatible features
-                            $('.edit-feature').closest('.form-check').addClass('unsupported-option');
-                            
-                            // Enable compatible features
-                            if (response.compatible_options) {
-                                response.compatible_options.forEach(function(featureId) {
+                            // Process features
+                            if (response.features && response.features.length > 0) {
+                                response.features.forEach(function(featureId) {
                                     $(`#edit_feature${featureId}`).closest('.form-check').removeClass('unsupported-option');
                                 });
                             }
                             
-                            // Keep checked items checked, but disable incompatible ones that were checked
-                            $('.edit-feature:checked').each(function() {
+                            // Uncheck incompatible selected options
+                            $('.edit-country:checked, .edit-purpose:checked, .edit-feature:checked').each(function() {
                                 if ($(this).closest('.form-check').hasClass('unsupported-option')) {
                                     $(this).prop('checked', false);
                                 }
@@ -1258,7 +1336,25 @@
                             
                             // Update rating after features change
                             updateEditRating();
-                        }
+                        },
+                        error: function(xhr, status, error) {
+                            // Remove loading indicator
+                            $('#selectedCategoriesBadgesEditForm .spinner-border').parent().remove();
+                            
+                            console.error('Compatible options error:', error, xhr.responseText);
+                            
+                            // Show error message that disappears after 3 seconds
+                            const errorMsg = $('<div class="alert alert-danger py-1 px-2 mt-1 mb-0" style="font-size: 0.8rem;"><i class="fas fa-exclamation-triangle"></i> Error loading compatibility data</div>');
+                            $('#selectedCategoriesBadgesEditForm').append(errorMsg);
+                            
+                            // If error, show all options rather than none
+                            $('.edit-country, .edit-purpose, .edit-feature').closest('.form-check').removeClass('unsupported-option');
+                            
+                            setTimeout(() => {
+                                errorMsg.fadeOut(300, function() { $(this).remove(); });
+                            }, 3000);
+                        },
+                        timeout: 15000 // 15 second timeout to prevent infinite loading
                     });
                 }
 

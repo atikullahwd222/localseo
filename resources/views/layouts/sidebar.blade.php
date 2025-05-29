@@ -36,6 +36,50 @@
             </a>
         </li>
 
+        <!-- Admin Area -->
+        @if(auth()->user()->isAdmin() || auth()->user()->isEditor())
+        <li class="menu-header small text-uppercase">
+            <span class="menu-header-text">Administration</span>
+        </li>
+        <li class="menu-item {{ request()->routeIs('admin.*') ? 'active open' : '' }}">
+            <a href="javascript:void(0);" class="menu-link menu-toggle">
+                <i class="menu-icon tf-icons bx bx-shield-quarter"></i>
+                <div data-i18n="Admin Area">Admin Area</div>
+            </a>
+            <ul class="menu-sub">
+                @if(auth()->user()->isAdmin() || auth()->user()->isEditor())
+                <li class="menu-item {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
+                    <a href="{{ route('admin.users.index') }}" class="menu-link">
+                        <i class="menu-icon tf-icons bx bx-user"></i>
+                        <div data-i18n="User Management">User Management</div>
+                    </a>
+                </li>
+                <li class="menu-item {{ request()->routeIs('admin.users.pending') ? 'active' : '' }}">
+                    <a href="{{ route('admin.users.pending') }}" class="menu-link">
+                        <i class="menu-icon tf-icons bx bx-user-check"></i>
+                        <div data-i18n="Pending Approvals">Pending Approvals</div>
+                    </a>
+                </li>
+                @endif
+                
+                @if(auth()->user()->isAdmin())
+                <li class="menu-item {{ request()->routeIs('admin.roles.*') ? 'active' : '' }}">
+                    <a href="{{ route('admin.roles.index') }}" class="menu-link">
+                        <i class="menu-icon tf-icons bx bx-user-pin"></i>
+                        <div data-i18n="Role Management">Role Management</div>
+                    </a>
+                </li>
+                <li class="menu-item {{ request()->routeIs('admin.permissions.*') ? 'active' : '' }}">
+                    <a href="{{ route('admin.permissions.index') }}" class="menu-link">
+                        <i class="menu-icon tf-icons bx bx-key"></i>
+                        <div data-i18n="Permission Management">Permission Management</div>
+                    </a>
+                </li>
+                @endif
+            </ul>
+        </li>
+        @endif
+
         <!-- Account Settings -->
         <li class="menu-item">
             <a href="javascript:void(0);" class="menu-link menu-toggle">

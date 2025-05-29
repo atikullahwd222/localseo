@@ -221,7 +221,7 @@
                                     <td>
                                         ${session.is_current ?
                                             '<span class="badge badge-sm bg-success">Current Session</span>' :
-                                            @if (auth()->user()->role === 'admin')
+                                            @if (auth()->user()->isAdmin())
                                             `<button class="btn btn-sm btn-danger terminate-session" data-session-id="${session.id}">
                                                         <i class="fas fa-times-circle me-1"></i> Terminate
                                                     </button>`

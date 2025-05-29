@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
 
 class Sites extends Model
 {
@@ -21,82 +22,140 @@ class Sites extends Model
     ];
 
     /**
-     * Get the categories associated with this site
+     * Get the category associated with the site
+     */
+    public function category()
+    {
+        return $this->belongsTo(SiteCategory::class, 'category_id');
+    }
+
+    /**
+     * Get the country associated with the site
+     */
+    public function country()
+    {
+        return $this->belongsTo(Country::class, 'country_id');
+    }
+
+    /**
+     * Get the work purpose associated with the site
+     */
+    public function workPurpose()
+    {
+        return $this->belongsTo(WorkPurpose::class, 'purpose_id');
+    }
+
+    /**
+     * Get the categories associated with this site (many-to-many)
      */
     public function categories()
     {
-        return $this->belongsToMany(SiteCategory::class, 'site_category_relations', 'site_id', 'category_id')
-                    ->withTimestamps();
+        try {
+            return $this->belongsToMany(SiteCategory::class, 'site_category_relations', 'site_id', 'category_id')
+                        ->withTimestamps();
+        } catch (\Exception $e) {
+            Log::error('Error in Sites->categories relation: ' . $e->getMessage());
+            return $this->belongsToMany(SiteCategory::class, 'site_category_relations', 'site_id', 'category_id');
+        }
     }
 
     /**
-     * Get the countries associated with this site
+     * Get the countries associated with this site (many-to-many)
      */
     public function countries()
     {
-        return $this->belongsToMany(Country::class, 'site_country_relations', 'site_id', 'country_id')
-                    ->withPivot('is_global')
-                    ->withTimestamps();
+        try {
+            return $this->belongsToMany(Country::class, 'site_country_relations', 'site_id', 'country_id')
+                        ->withPivot('is_global')
+                        ->withTimestamps();
+        } catch (\Exception $e) {
+            Log::error('Error in Sites->countries relation: ' . $e->getMessage());
+            return $this->belongsToMany(Country::class, 'site_country_relations', 'site_id', 'country_id');
+        }
     }
 
     /**
-     * Get the work purposes associated with this site
+     * Get the work purposes associated with this site (many-to-many)
      */
     public function workPurposes()
     {
-        return $this->belongsToMany(WorkPurpose::class, 'site_work_purpose_relations', 'site_id', 'purpose_id')
-                    ->withTimestamps();
+        try {
+            return $this->belongsToMany(WorkPurpose::class, 'site_work_purpose_relations', 'site_id', 'purpose_id')
+                        ->withTimestamps();
+        } catch (\Exception $e) {
+            Log::error('Error in Sites->workPurposes relation: ' . $e->getMessage());
+            return $this->belongsToMany(WorkPurpose::class, 'site_work_purpose_relations', 'site_id', 'purpose_id');
+        }
     }
 
     /**
-     * Get the features for this site
+     * Get the features associated with this site
      */
     public function features()
     {
-        return $this->belongsToMany(SiteFeature::class, 'site_feature_relations', 'site_id', 'site_feature_id')
-                    ->withPivot('has_feature')
-                    ->withTimestamps();
-    }
-
-    /**
-     * Calculate the site's rating based on features
-     */
-    public function calculateRating()
-    {
-        $siteFeatures = $this->features()->wherePivot('has_feature', true)->get();
-        $totalPoints = $siteFeatures->sum('points');
-        $maxRating = SiteFeature::sum('points');
-        
-        if ($maxRating > 0) {
-            $this->rating = ($totalPoints / $maxRating) * 10; // Scale to 10
-            $this->max_rating = 10;
-            $this->save();
+        try {
+            return $this->belongsToMany(SiteFeature::class, 'site_feature_relations', 'site_id', 'site_feature_id')
+                        ->withPivot('has_feature')
+                        ->withTimestamps();
+        } catch (\Exception $e) {
+            Log::error('Error in Sites->features relation: ' . $e->getMessage());
+            return $this->belongsToMany(SiteFeature::class, 'site_feature_relations', 'site_id', 'site_feature_id');
         }
-        
-        return $this->rating;
     }
 
     /**
-     * Check if this site is global (available in all countries)
+     * Check if a site is global
      */
     public function isGlobal()
     {
-        return $this->countries()->wherePivot('is_global', true)->exists();
+        try {
+            return $this->countries()->wherePivot('is_global', true)->exists();
+        } catch (\Exception $e) {
+            Log::error('Error in Sites->isGlobal method: ' . $e->getMessage());
+            return false;
+        }
     }
 
     /**
-     * Get the list of countries with information about global status
+     * Get a formatted list of countries
      */
     public function countryList()
     {
-        $countries = $this->countries()->get();
-        $isGlobal = $this->isGlobal();
-        
-        if ($isGlobal) {
-            return 'Global' . ($countries->count() > 0 ? ' + ' . $countries->pluck('name')->join(', ') : '');
+        try {
+            if ($this->isGlobal()) {
+                return 'Global';
+            }
+            
+            return $this->countries->pluck('name')->join(', ');
+        } catch (\Exception $e) {
+            Log::error('Error in Sites->countryList method: ' . $e->getMessage());
+            return 'Unknown';
         }
-        
-        return $countries->pluck('name')->join(', ');
+    }
+
+    /**
+     * Calculate and update the site's rating based on its features
+     */
+    public function calculateRating()
+    {
+        try {
+            // Get all features
+            $allFeatures = SiteFeature::all();
+            $maxRating = $allFeatures->sum('points');
+            
+            // Get the site's features
+            $siteFeatures = $this->features()->wherePivot('has_feature', true)->get();
+            $siteRating = $siteFeatures->sum('points');
+            
+            // Update the site's rating
+            $this->rating = $maxRating > 0 ? $siteRating : 0;
+            $this->save();
+            
+            return $this->rating;
+        } catch (\Exception $e) {
+            Log::error('Error in Sites->calculateRating method: ' . $e->getMessage());
+            return 0;
+        }
     }
 
     /**

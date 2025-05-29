@@ -146,7 +146,7 @@ class SiteSettingsController extends Controller
      */
     public function getCountries()
     {
-        $countries = Country::latest()->get();
+        $countries = Country::with('compatibleCategories')->latest()->get();
         return response()->json([
             'status' => 200,
             'countries' => $countries,
@@ -161,6 +161,8 @@ class SiteSettingsController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:191',
             'description' => 'nullable|string',
+            'category_ids' => 'nullable|array',
+            'category_ids.*' => 'exists:site_categories,id',
         ]);
 
         if ($validator->fails()) {
@@ -174,11 +176,16 @@ class SiteSettingsController extends Controller
             'name' => $request->name,
             'description' => $request->description,
         ]);
+        
+        // Sync compatible categories
+        if ($request->has('category_ids')) {
+            $country->compatibleCategories()->sync($request->category_ids);
+        }
 
         return response()->json([
             'status' => 200,
             'message' => 'Country created successfully!',
-            'country' => $country,
+            'country' => $country->load('compatibleCategories'),
         ]);
     }
 
@@ -187,7 +194,7 @@ class SiteSettingsController extends Controller
      */
     public function getCountry($id)
     {
-        $country = Country::findOrFail($id);
+        $country = Country::with('compatibleCategories')->findOrFail($id);
         
         if ($country) {
             return response()->json([
@@ -210,6 +217,8 @@ class SiteSettingsController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:191',
             'description' => 'nullable|string',
+            'category_ids' => 'nullable|array',
+            'category_ids.*' => 'exists:site_categories,id',
         ]);
 
         if ($validator->fails()) {
@@ -227,10 +236,15 @@ class SiteSettingsController extends Controller
                 'description' => $request->description,
             ]);
             
+            // Sync compatible categories
+            if ($request->has('category_ids')) {
+                $country->compatibleCategories()->sync($request->category_ids);
+            }
+            
             return response()->json([
                 'status' => 200,
                 'message' => 'Country updated successfully!',
-                'country' => $country,
+                'country' => $country->load('compatibleCategories'),
             ]);
         } else {
             return response()->json([
@@ -267,7 +281,7 @@ class SiteSettingsController extends Controller
      */
     public function getPurposes()
     {
-        $purposes = WorkPurpose::latest()->get();
+        $purposes = WorkPurpose::with('compatibleCategories')->latest()->get();
         return response()->json([
             'status' => 200,
             'purposes' => $purposes,
@@ -282,6 +296,8 @@ class SiteSettingsController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:191',
             'description' => 'nullable|string',
+            'category_ids' => 'nullable|array',
+            'category_ids.*' => 'exists:site_categories,id',
         ]);
 
         if ($validator->fails()) {
@@ -295,11 +311,16 @@ class SiteSettingsController extends Controller
             'name' => $request->name,
             'description' => $request->description,
         ]);
+        
+        // Sync compatible categories
+        if ($request->has('category_ids')) {
+            $purpose->compatibleCategories()->sync($request->category_ids);
+        }
 
         return response()->json([
             'status' => 200,
             'message' => 'Purpose created successfully!',
-            'purpose' => $purpose,
+            'purpose' => $purpose->load('compatibleCategories'),
         ]);
     }
 
@@ -308,7 +329,7 @@ class SiteSettingsController extends Controller
      */
     public function getPurpose($id)
     {
-        $purpose = WorkPurpose::findOrFail($id);
+        $purpose = WorkPurpose::with('compatibleCategories')->findOrFail($id);
         
         if ($purpose) {
             return response()->json([
@@ -331,6 +352,8 @@ class SiteSettingsController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:191',
             'description' => 'nullable|string',
+            'category_ids' => 'nullable|array',
+            'category_ids.*' => 'exists:site_categories,id',
         ]);
 
         if ($validator->fails()) {
@@ -348,10 +371,15 @@ class SiteSettingsController extends Controller
                 'description' => $request->description,
             ]);
             
+            // Sync compatible categories
+            if ($request->has('category_ids')) {
+                $purpose->compatibleCategories()->sync($request->category_ids);
+            }
+            
             return response()->json([
                 'status' => 200,
                 'message' => 'Purpose updated successfully!',
-                'purpose' => $purpose,
+                'purpose' => $purpose->load('compatibleCategories'),
             ]);
         } else {
             return response()->json([
@@ -388,7 +416,7 @@ class SiteSettingsController extends Controller
      */
     public function getFeatures()
     {
-        $features = SiteFeature::latest()->get();
+        $features = SiteFeature::with('compatibleCategories')->latest()->get();
         return response()->json([
             'status' => 200,
             'features' => $features,
@@ -404,6 +432,8 @@ class SiteSettingsController extends Controller
             'name' => 'required|string|max:191',
             'description' => 'nullable|string',
             'points' => 'required|integer|min:1',
+            'category_ids' => 'nullable|array',
+            'category_ids.*' => 'exists:site_categories,id',
         ]);
 
         if ($validator->fails()) {
@@ -418,11 +448,16 @@ class SiteSettingsController extends Controller
             'description' => $request->description,
             'points' => $request->points,
         ]);
+        
+        // Sync compatible categories
+        if ($request->has('category_ids')) {
+            $feature->compatibleCategories()->sync($request->category_ids);
+        }
 
         return response()->json([
             'status' => 200,
             'message' => 'Feature created successfully!',
-            'feature' => $feature,
+            'feature' => $feature->load('compatibleCategories'),
         ]);
     }
 
@@ -431,7 +466,7 @@ class SiteSettingsController extends Controller
      */
     public function getFeature($id)
     {
-        $feature = SiteFeature::findOrFail($id);
+        $feature = SiteFeature::with('compatibleCategories')->findOrFail($id);
         
         if ($feature) {
             return response()->json([
@@ -455,6 +490,8 @@ class SiteSettingsController extends Controller
             'name' => 'required|string|max:191',
             'description' => 'nullable|string',
             'points' => 'required|integer|min:1',
+            'category_ids' => 'nullable|array',
+            'category_ids.*' => 'exists:site_categories,id',
         ]);
 
         if ($validator->fails()) {
@@ -473,10 +510,15 @@ class SiteSettingsController extends Controller
                 'points' => $request->points,
             ]);
             
+            // Sync compatible categories
+            if ($request->has('category_ids')) {
+                $feature->compatibleCategories()->sync($request->category_ids);
+            }
+            
             return response()->json([
                 'status' => 200,
                 'message' => 'Feature updated successfully!',
-                'feature' => $feature,
+                'feature' => $feature->load('compatibleCategories'),
             ]);
         } else {
             return response()->json([
@@ -578,6 +620,48 @@ class SiteSettingsController extends Controller
             'countries' => $countries,
             'purposes' => $purposes,
             'features' => $features,
+        ]);
+    }
+    
+    /**
+     * Get compatible countries for a specific category
+     */
+    public function getCompatibleCountries($categoryId)
+    {
+        $category = SiteCategory::findOrFail($categoryId);
+        $compatibleCountries = $category->compatibleCountries;
+        
+        return response()->json([
+            'status' => 200,
+            'compatibleCountries' => $compatibleCountries,
+        ]);
+    }
+    
+    /**
+     * Get compatible purposes for a specific category
+     */
+    public function getCompatiblePurposes($categoryId)
+    {
+        $category = SiteCategory::findOrFail($categoryId);
+        $compatiblePurposes = $category->compatibleWorkPurposes;
+        
+        return response()->json([
+            'status' => 200,
+            'compatiblePurposes' => $compatiblePurposes,
+        ]);
+    }
+    
+    /**
+     * Get compatible features for a specific category
+     */
+    public function getCompatibleFeatures($categoryId)
+    {
+        $category = SiteCategory::findOrFail($categoryId);
+        $compatibleFeatures = $category->compatibleFeatures;
+        
+        return response()->json([
+            'status' => 200,
+            'compatibleFeatures' => $compatibleFeatures,
         ]);
     }
 } 

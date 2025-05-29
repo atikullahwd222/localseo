@@ -81,7 +81,7 @@ class SessionController extends Controller
     {
         try {
             // Check if user is admin
-            if (auth()->user()->role !== 'admin') {
+            if (!auth()->user()->isAdmin()) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Permission denied. Only administrators can terminate sessions.'

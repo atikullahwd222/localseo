@@ -27,9 +27,21 @@ class AuthenticatedSessionController extends Controller
     public function store(LoginRequest $request)
     {
         try {
-        $request->authenticate();
+            $request->authenticate();
 
-        $request->session()->regenerate();
+            // Check if user is active
+            $user = auth()->user();
+            if ($user && $user->status !== 'active') {
+                auth()->logout();
+                
+                return back()
+                    ->withInput()
+                    ->withErrors([
+                        'email' => 'Your account is not active. Please contact an administrator.',
+                    ]);
+            }
+
+            $request->session()->regenerate();
 
             if ($request->wantsJson()) {
                 return response()->json([
@@ -39,7 +51,7 @@ class AuthenticatedSessionController extends Controller
                 ]);
             }
 
-        return redirect()->intended(RouteServiceProvider::HOME);
+            return redirect()->intended(RouteServiceProvider::HOME);
         } catch (ValidationException $e) {
             if ($request->wantsJson()) {
                 return response()->json([
