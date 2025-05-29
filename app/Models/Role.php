@@ -47,22 +47,32 @@ class Role extends Model
      */
     public function givePermissionTo(...$permissions)
     {
-        $permissions = collect($permissions)
-            ->flatten()
-            ->map(function ($permission) {
-                if (is_string($permission)) {
-                    return Permission::where('slug', $permission)->first()->id ?? false;
-                }
-                
-                return $permission->id ?? false;
-            })
-            ->filter(function ($permission) {
-                return $permission;
-            })->toArray();
-        
-        $this->permissions()->syncWithoutDetaching($permissions);
-        
-        return $this;
+        try {
+            $permissions = collect($permissions)
+                ->flatten()
+                ->map(function ($permission) {
+                    if (is_string($permission)) {
+                        $perm = Permission::where('slug', $permission)->first();
+                        return $perm ? $perm->id : false;
+                    }
+                    
+                    return $permission->id ?? false;
+                })
+                ->filter(function ($permission) {
+                    return $permission;
+                })->toArray();
+            
+            if (empty($permissions)) {
+                throw new \Exception("No valid permissions found to assign");
+            }
+            
+            $this->permissions()->syncWithoutDetaching($permissions);
+            
+            return $this;
+        } catch (\Exception $e) {
+            \Log::error('Error assigning permission to role: ' . $e->getMessage());
+            throw $e;
+        }
     }
     
     /**
@@ -70,22 +80,32 @@ class Role extends Model
      */
     public function removePermission(...$permissions)
     {
-        $permissions = collect($permissions)
-            ->flatten()
-            ->map(function ($permission) {
-                if (is_string($permission)) {
-                    return Permission::where('slug', $permission)->first()->id ?? false;
-                }
+        try {
+            $permissions = collect($permissions)
+                ->flatten()
+                ->map(function ($permission) {
+                    if (is_string($permission)) {
+                        $perm = Permission::where('slug', $permission)->first();
+                        return $perm ? $perm->id : false;
+                    }
+                    
+                    return $permission->id ?? false;
+                })
+                ->filter(function ($permission) {
+                    return $permission;
+                })->toArray();
                 
-                return $permission->id ?? false;
-            })
-            ->filter(function ($permission) {
-                return $permission;
-            })->toArray();
+            if (empty($permissions)) {
+                throw new \Exception("No valid permissions found to remove");
+            }
             
-        $this->permissions()->detach($permissions);
-        
-        return $this;
+            $this->permissions()->detach($permissions);
+            
+            return $this;
+        } catch (\Exception $e) {
+            \Log::error('Error removing permission from role: ' . $e->getMessage());
+            throw $e;
+        }
     }
     
     /**

@@ -196,6 +196,10 @@
                     return false;
                 }
                 
+                console.log('Sending permission toggle request:', {
+                    roleId, permissionId, roleName, hasPermission
+                });
+                
                 $.ajax({
                     url: '{{ route("admin.permissions.assign") }}',
                     method: 'POST',
@@ -203,9 +207,10 @@
                         _token: '{{ csrf_token() }}',
                         role_id: roleId,
                         permission_id: permissionId,
-                        has_permission: hasPermission
+                        has_permission: hasPermission ? 'true' : 'false'
                     },
                     success: function(response) {
+                        console.log('Permission toggle success:', response);
                         if (response.success) {
                             const toastMessage = hasPermission 
                                 ? `Permission granted to ${roleName} role`
@@ -231,6 +236,7 @@
                         }
                     }.bind(this),
                     error: function(xhr) {
+                        console.error('Permission toggle error:', xhr.responseJSON || xhr);
                         Swal.fire({
                             icon: 'error',
                             title: 'Error',

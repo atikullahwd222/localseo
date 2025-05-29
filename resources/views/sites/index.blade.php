@@ -63,21 +63,45 @@
         
         /* Enhanced unsupported option styling */
         .unsupported-option {
-            opacity: 0.5;
-            text-decoration: line-through;
+            opacity: 0.5 !important;
+            text-decoration: line-through !important;
+        }
+        
+        /* Only hide completely when explicitly told to do so - highest specificity */
+        .compatibility-container.hide-incompatible .form-check.unsupported-option,
+        .hide-incompatible .form-check.unsupported-option,
+        #addSiteForm .compatibility-container.hide-incompatible .form-check.unsupported-option,
+        #editSiteForm .compatibility-container.hide-incompatible .form-check.unsupported-option {
+            display: none !important;
+            visibility: hidden !important;
+        }
+        
+        /* Extra specific rules to ensure the right elements are hidden */
+        #addSiteForm .compatibility-container.hide-incompatible .unsupported-option,
+        #editSiteForm .compatibility-container.hide-incompatible .unsupported-option,
+        #filter_countriesContainer.hide-incompatible .unsupported-option,
+        #step3 .border.hide-incompatible .unsupported-option,
+        #step4 .border.hide-incompatible .unsupported-option {
+            display: none !important;
+            visibility: hidden !important;
         }
         
         .compatibility-note {
             font-size: 0.8rem;
-            color: #6c757d;
+            color: #0d6efd;
             margin-top: 5px;
             display: block;
+            background-color: rgba(13, 110, 253, 0.05);
+            padding: 5px;
+            border-left: 3px solid #0d6efd;
+            border-radius: 0 4px 4px 0;
         }
         
         /* Category compatibility section highlight */
         .compatibility-active {
             border: 1px solid #0d6efd !important;
             background-color: rgba(13, 110, 253, 0.05);
+            box-shadow: 0 0 5px rgba(13, 110, 253, 0.2);
         }
         
         /* Loading indicator for compatibility filtering */
@@ -100,6 +124,19 @@
             padding-right: 2.375rem;
             background-position: right calc(0.375em + 0.1875rem) center;
         }
+        
+        /* Enhanced validation styles */
+        .form-control.is-valid {
+            border-color: #28a745;
+            border-width: 2px;
+            box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+        }
+        
+        .form-control.is-invalid {
+            border-color: #dc3545;
+            border-width: 2px;
+            box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+        }
     </style>
     @endsection
 
@@ -120,7 +157,7 @@
                                     
                                     <div class="alert alert-info mb-3" role="alert">
                                         <i class="fas fa-info-circle me-2"></i>
-                                        <strong>Category-Based Filtering:</strong> Your category selection will determine which countries, work purposes, and features are available in the following steps.
+                                        <strong>Category-Based Filtering:</strong> Your category selection will determine which countries, work purposes, and features are available in the following steps. Options that are not compatible with your selected categories will be hidden.
                                     </div>
                                     
                                     <div class="mb-3 border p-3 rounded" style="max-height: 200px; overflow-y: auto;">
@@ -239,29 +276,32 @@
                                         <i class="fas fa-file-excel me-1"></i> Copy to Excel
                                     </button>
                                     @if(auth()->user()->canManageSites())
-                                    <a href="#" data-bs-toggle="modal" data-bs-target="#AddSiteModal"
-                                        class="btn btn-primary">
-                                        <i class="fas fa-plus me-2"></i> Add New Site
-                                    </a>
+                                <a href="#" data-bs-toggle="modal" data-bs-target="#AddSiteModal"
+                                    class="btn btn-primary">
+                                    <i class="fas fa-plus me-2"></i> Add New Site
+                                </a>
                                     @endif
                                 </div>
                             </div>
 
                             <!-- No data message -->
-                            <div id="noFiltersMessage" class="text-center py-5">
+                            <div id="noFiltersMessage" class="text-center py-5 @if(isset($sites) && $sites->count() > 0) d-none @endif">
                                 <i class="fas fa-filter fa-3x text-muted mb-3"></i>
-                                <h4 class="text-muted">Please use the filters above to view sites</h4>
+                                <h4 class="text-muted">Please use the filters above to view specific sites</h4>
                                 <p class="text-muted">Select options in each step to display matching sites</p>
                             </div>
 
-                            <div id="sitesTableContainer" class="d-none">
+                            <div id="sitesTableContainer" class="@if(!isset($sites) || $sites->count() == 0) d-none @endif">
                             <div class="table-responsive">
                                 <table class="table table-hover">
                                     <thead>
                                         <tr>
-                                            <th scope="col">URL</th>
+                                            <th scope="col">Domain</th>
+                                            <th scope="col">Complete URL</th>
                                             <th scope="col">DA</th>
+                                            <th scope="col">Video</th>
                                             <th scope="col">Status</th>
+                                            <th scope="col">Server Status</th>
                                             <th scope="col">Rating</th>
                                             <th scope="col">Categories</th>
                                             <th scope="col">Countries</th>
@@ -270,8 +310,7 @@
                                     </thead>
                                     <tbody>
                                         <tr id="loading-spinner" style="display: none;">
-                                                <td colspan="7" class="text-center">
-                                                <td colspan="6" class="text-center">
+                                                <td colspan="9" class="text-center">
                                                 <div class="d-flex justify-content-center align-items-center py-4">
                                                     <div class="spinner-border text-primary" role="status">
                                                         <span class="visually-hidden">Loading...</span>
@@ -280,15 +319,57 @@
                                             </td>
                                         </tr>
                                             <tr id="no-results" class="d-none">
-                                                <td colspan="6" class="text-center py-4">
+                                                <td colspan="9" class="text-center py-4">
                                                     <i class="fas fa-search fa-2x text-muted mb-3"></i>
                                                     <h5 class="text-muted">No matching sites found</h5>
                                                     <p class="text-muted">Try adjusting your filter criteria</p>
+                                            </td>
+                                        </tr>
+                                        
+                                        @if(isset($sites) && $sites->count() > 0)
+                                            @foreach($sites as $site)
+                                            <tr class="default-site-row">
+                                                <td>{{ $site['url'] }}</td>
+                                                <td>{{ $site['complete_url'] ?? 'N/A' }}</td>
+                                                <td>{{ $site['da'] ?? 'N/A' }}</td>
+                                                <td>
+                                                    @if(!empty($site['video_link']))
+                                                        <button type="button" class="btn btn-sm btn-outline-primary play-video-btn" data-video-url="{{ $site['video_link'] }}">
+                                                            <i class="fas fa-play-circle"></i> Play
+                                                        </button>
+                                                    @else
+                                                        <span class="text-muted">No video</span>
+                                                    @endif
+                                                </td>
+                                                <td>{{ $site['status'] }}</td>
+                                                <td>{{ $site['server_status'] ?? 'Unknown' }}</td>
+                                                <td class="{{ $site['rating'] >= 7 ? 'text-success fw-bold' : ($site['rating'] >= 4 ? 'text-warning' : 'text-danger') }}">
+                                                    {{ number_format($site['rating'], 1) }} / {{ $site['max_rating'] ?? 10 }}
+                                                </td>
+                                                <td>{{ $site['categories_list'] }}</td>
+                                                <td>{{ $site['countries_list'] }}</td>
+                                                <td>
+                                                    <div class="btn-group" role="group" aria-label="Basic example">
+                                                        @if(auth()->user()->canManageSites())
+                                                        <button type="button" value="{{ $site['id'] }}" class="btn btn-primary edit-btn"><i class='bx bxs-edit'></i></button>
+                                                        <button type="button" value="{{ $site['id'] }}" class="btn btn-danger delete-btn"><i class='bx bxs-trash'></i></button>
+                                                        @else
+                                                        <button type="button" class="btn btn-secondary" disabled><i class='bx bxs-lock'></i></button>
+                                                        @endif
+                                                    </div>
                                                 </td>
                                             </tr>
+                                            @endforeach
+                                        @endif
                                     </tbody>
                                 </table>
+                            </div>
+                                
+                                @if(isset($sites) && $sites->count() > 0)
+                                <div class="pagination-container d-flex justify-content-center mt-4">
+                                    {{ $sites->links() }}
                                 </div>
+                                @endif
                             </div>
                         </div>
                     </div>
@@ -313,9 +394,23 @@
                                 <div class="col-md-8">
                                     <div class="form-group mb-3">
                                         <label for="url">Domain Name</label>
-                                        <input type="text" class="form-control" id="url" name="url" required placeholder="example.com">
-                                        <small class="text-muted">Enter domain name only (e.g., example.com). Do not include http:// or www.</small>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="url" name="url" required placeholder="example.com">
+                                            <button class="btn btn-secondary" type="button" id="checkDomainBtn">Check Status</button>
+                            </div>
+                                        <small class="text-muted">Enter domain name with optional subdomain (e.g., example.com or blog.example.com)</small>
                                         <div class="invalid-feedback" id="url_error"></div>
+                                        <div id="serverStatusFeedback" class="mt-2 d-none">
+                                            <div class="alert alert-info" role="alert">
+                                                <span id="serverStatusMessage">Checking domain...</span>
+                                            </div>
+                                        </div>
+                                        <div class="form-check mt-2 d-none" id="ignoreServerStatusContainer">
+                                            <input class="form-check-input" type="checkbox" id="ignoreServerStatus">
+                                            <label class="form-check-label" for="ignoreServerStatus">
+                                                Ignore server status and allow submission anyway
+                                            </label>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="col-md-4">
@@ -332,13 +427,19 @@
                                 <textarea class="form-control" id="description" name="description"></textarea>
                             </div>
 
+                            <div class="form-group mb-3">
+                                <label for="video_link">YouTube Video Link (Optional)</label>
+                                <input type="url" class="form-control" id="video_link" name="video_link" placeholder="https://www.youtube.com/watch?v=...">
+                                <small class="text-muted">Enter a YouTube video URL that will be embedded in a modal</small>
+                            </div>
+
                             <div class="row mb-3">
                                 <div class="col-md-4">
                             <div class="form-group">
                                 <label for="status">Status</label>
                                 <select class="form-control" id="status" name="status">
-                                    <option value="active" selected>Active</option>
-                                    <option value="inactive">Inactive</option>
+                                    <option value="Live" selected>Live</option>
+                                    <option value="Pending">Pending</option>
                                 </select>
                             </div>
                                 </div>
@@ -365,7 +466,13 @@
                                 <div class="col-md-6">
                                     <div class="form-group mb-3">
                                         <label>Categories</label>
-                                        <div class="border p-3 rounded" style="max-height: 150px; overflow-y: auto;">
+                                        <div class="form-check form-switch mb-2">
+                                            <input class="form-check-input" type="checkbox" id="hideIncompatibleOptions">
+                                            <label class="form-check-label" for="hideIncompatibleOptions">
+                                                <small>Hide incompatible options</small>
+                                            </label>
+                                        </div>
+                                        <div class="border p-3 rounded compatibility-container" style="max-height: 150px; overflow-y: auto;">
                                             @foreach($categories as $category)
                                                 <div class="form-check">
                                                     <input class="form-check-input add-category" type="checkbox" name="categories[]" value="{{ $category->id }}" id="category{{ $category->id }}" data-category-name="{{ $category->name }}">
@@ -386,7 +493,7 @@
                                     <div class="form-group mb-3">
                                         <label>Work Purposes</label>
                                         <div id="selectedCategoriesBadgesAddForm" class="mb-2"></div>
-                                        <div class="border p-3 rounded" style="max-height: 150px; overflow-y: auto;">
+                                        <div class="border p-3 rounded compatibility-container" style="max-height: 150px; overflow-y: auto;">
                                             @foreach($purposes as $purpose)
                                                 <div class="form-check">
                                                     <input class="form-check-input add-purpose" type="checkbox" name="purposes[]" value="{{ $purpose->id }}" id="purpose{{ $purpose->id }}">
@@ -398,7 +505,7 @@
                                         </div>
                                         <small class="text-muted">Select multiple work purposes</small>
                                         <span id="purposeCompatibilityNoteAdd" class="compatibility-note d-none">
-                                            Crossed-out options are not compatible with selected categories
+                                            <i class="fas fa-info-circle me-1"></i> Only showing options compatible with selected categories
                                         </span>
                                     </div>
                                 </div>
@@ -412,7 +519,7 @@
                                         <strong>Global (All Countries)</strong>
                                     </label>
                                 </div>
-                                <div id="countriesContainer" class="border p-3 rounded" style="max-height: 150px; overflow-y: auto;">
+                                <div id="countriesContainer" class="border p-3 rounded compatibility-container" style="max-height: 150px; overflow-y: auto;">
                                     @foreach($countries as $country)
                                         <div class="form-check">
                                             <input class="form-check-input country-checkbox add-country" type="checkbox" name="countries[]" value="{{ $country->id }}" id="country{{ $country->id }}">
@@ -424,13 +531,13 @@
                                 </div>
                                 <small class="text-muted">Select multiple countries or check Global</small>
                                 <span id="countryCompatibilityNoteAdd" class="compatibility-note d-none">
-                                    Crossed-out options are not compatible with selected categories
+                                    <i class="fas fa-info-circle me-1"></i> Only showing options compatible with selected categories
                                 </span>
                             </div>
 
                             <div class="form-group mb-3">
                                 <label>Site Features (Rating System)</label>
-                                <div class="border p-3 rounded" style="max-height: 200px; overflow-y: auto;">
+                                <div class="border p-3 rounded compatibility-container" style="max-height: 200px; overflow-y: auto;">
                                     <div class="row">
                                         @foreach($features as $feature)
                                             <div class="col-md-6 mb-2">
@@ -451,8 +558,14 @@
                                 </div>
                                 <small class="text-muted">Total rating: <span id="currentRating">0</span> out of <span id="maxRating">{{ $features->sum('points') }}</span> points</small>
                                 <span id="featureCompatibilityNoteAdd" class="compatibility-note d-none">
-                                    Crossed-out options are not compatible with selected categories
+                                    <i class="fas fa-info-circle me-1"></i> Only showing options compatible with selected categories
                                 </span>
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="complete_url">Complete URL</label>
+                                <input type="text" class="form-control" id="complete_url" name="complete_url" placeholder="https://example.com">
+                                <small class="text-muted">Enter the full URL including http:// or https://</small>
                             </div>
                         </form>
                     </div>
@@ -487,9 +600,23 @@
                                 <div class="col-md-8">
                                     <div class="form-group mb-3">
                                         <label for="edit_url">Domain Name</label>
-                                        <input type="text" class="form-control" id="edit_url" name="edit_url" required placeholder="example.com">
-                                        <small class="text-muted">Enter domain name only (e.g., example.com). Do not include http:// or www.</small>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="edit_url" name="edit_url" required placeholder="example.com">
+                                            <button class="btn btn-secondary" type="button" id="editCheckDomainBtn">Check Status</button>
+                            </div>
+                                        <small class="text-muted">Enter domain name with optional subdomain (e.g., example.com or blog.example.com)</small>
                                         <div class="invalid-feedback" id="edit_url_error"></div>
+                                        <div id="editServerStatusFeedback" class="mt-2 d-none">
+                                            <div class="alert alert-info" role="alert">
+                                                <span id="editServerStatusMessage">Checking domain...</span>
+                                            </div>
+                                        </div>
+                                        <div class="form-check mt-2 d-none" id="editIgnoreServerStatusContainer">
+                                            <input class="form-check-input" type="checkbox" id="editIgnoreServerStatus">
+                                            <label class="form-check-label" for="editIgnoreServerStatus">
+                                                Ignore server status and allow submission anyway
+                                            </label>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="col-md-4">
@@ -499,6 +626,11 @@
                                         <small class="text-muted">Enter a value between 0-100</small>
                                     </div>
                                 </div>
+                                <div class="form-group mb-3">
+                                    <label for="edit_complete_url">Complete URL</label>
+                                    <input type="text" class="form-control" id="edit_complete_url" name="edit_complete_url" placeholder="https://example.com">
+                                    <small class="text-muted">Enter the full URL including http:// or https://</small>
+                                </div>
                             </div>
 
                             <div class="form-group mb-3">
@@ -506,13 +638,19 @@
                                 <textarea class="form-control" id="edit_description" name="edit_description"></textarea>
                             </div>
 
+                            <div class="form-group mb-3">
+                                <label for="edit_video_link">YouTube Video Link (Optional)</label>
+                                <input type="url" class="form-control" id="edit_video_link" name="edit_video_link" placeholder="https://www.youtube.com/watch?v=...">
+                                <small class="text-muted">Enter a YouTube video URL that will be embedded in a modal</small>
+                            </div>
+
                             <div class="row mb-3">
                                 <div class="col-md-4">
                                     <div class="form-group">
                                 <label for="edit_status">Status</label>
                                 <select class="form-control" id="edit_status" name="edit_status">
-                                    <option value="active">Active</option>
-                                    <option value="inactive">Inactive</option>
+                                    <option value="Live">Live</option>
+                                    <option value="Pending">Pending</option>
                                 </select>
                             </div>
                                 </div>
@@ -539,7 +677,13 @@
                                 <div class="col-md-6">
                                     <div class="form-group mb-3">
                                         <label>Categories</label>
-                                        <div class="border p-3 rounded" style="max-height: 150px; overflow-y: auto;">
+                                        <div class="form-check form-switch mb-2">
+                                            <input class="form-check-input" type="checkbox" id="hideIncompatibleOptionsEdit">
+                                            <label class="form-check-label" for="hideIncompatibleOptionsEdit">
+                                                <small>Hide incompatible options</small>
+                                            </label>
+                                        </div>
+                                        <div class="border p-3 rounded compatibility-container" style="max-height: 150px; overflow-y: auto;">
                                             @foreach($categories as $category)
                                                 <div class="form-check">
                                                     <input class="form-check-input edit-category" type="checkbox" name="categories[]" value="{{ $category->id }}" id="edit_category{{ $category->id }}" data-category-name="{{ $category->name }}">
@@ -560,7 +704,7 @@
                                     <div class="form-group mb-3">
                                         <label>Work Purposes</label>
                                         <div id="selectedCategoriesBadgesEditForm" class="mb-2"></div>
-                                        <div class="border p-3 rounded" style="max-height: 150px; overflow-y: auto;">
+                                        <div class="border p-3 rounded compatibility-container" style="max-height: 150px; overflow-y: auto;">
                                             @foreach($purposes as $purpose)
                                                 <div class="form-check">
                                                     <input class="form-check-input edit-purpose" type="checkbox" name="purposes[]" value="{{ $purpose->id }}" id="edit_purpose{{ $purpose->id }}">
@@ -572,7 +716,7 @@
                                         </div>
                                         <small class="text-muted">Select multiple work purposes</small>
                                         <span id="purposeCompatibilityNoteEdit" class="compatibility-note d-none">
-                                            Crossed-out options are not compatible with selected categories
+                                            <i class="fas fa-info-circle me-1"></i> Only showing options compatible with selected categories
                                         </span>
                                     </div>
                                 </div>
@@ -586,7 +730,7 @@
                                         <strong>Global (All Countries)</strong>
                                     </label>
                                 </div>
-                                <div id="edit_countriesContainer" class="border p-3 rounded" style="max-height: 150px; overflow-y: auto;">
+                                <div id="edit_countriesContainer" class="border p-3 rounded compatibility-container" style="max-height: 150px; overflow-y: auto;">
                                     @foreach($countries as $country)
                                         <div class="form-check">
                                             <input class="form-check-input edit-country-checkbox edit-country" type="checkbox" name="countries[]" value="{{ $country->id }}" id="edit_country{{ $country->id }}">
@@ -598,13 +742,13 @@
                                 </div>
                                 <small class="text-muted">Select multiple countries or check Global</small>
                                 <span id="countryCompatibilityNoteEdit" class="compatibility-note d-none">
-                                    Crossed-out options are not compatible with selected categories
+                                    <i class="fas fa-info-circle me-1"></i> Only showing options compatible with selected categories
                                 </span>
                             </div>
 
                             <div class="form-group mb-3">
                                 <label>Site Features (Rating System)</label>
-                                <div class="border p-3 rounded" style="max-height: 200px; overflow-y: auto;">
+                                <div class="border p-3 rounded compatibility-container" style="max-height: 200px; overflow-y: auto;">
                                     <div class="row">
                                         @foreach($features as $feature)
                                             <div class="col-md-6 mb-2">
@@ -625,7 +769,7 @@
                                 </div>
                                 <small class="text-muted">Total rating: <span id="edit_currentRating">0</span> out of <span id="edit_maxRating">{{ $features->sum('points') }}</span> points</small>
                                 <span id="featureCompatibilityNoteEdit" class="compatibility-note d-none">
-                                    Crossed-out options are not compatible with selected categories
+                                    <i class="fas fa-info-circle me-1"></i> Only showing options compatible with selected categories
                                 </span>
                             </div>
                         </form>
@@ -645,7 +789,18 @@
     @endsection
 
     @push('scripts')
+        <script>
+            // Global route URLs for JavaScript access
+            window.routeUrls = {
+                checkReachability: "{{ route('sites.check-reachability') }}",
+                compatibleOptions: "{{ route('sites.compatible-options') }}"
+            };
+        </script>
         <script src="{{ asset('js/site-compatibility.js') }}"></script>
+        <script src="{{ asset('js/site-ratings.js') }}"></script>
+        <script src="{{ asset('js/domain-checker.js') }}"></script>
+        <script src="{{ asset('js/add-site-category-filter.js') }}"></script>
+        <script src="{{ asset('js/edit-site-category-filter.js') }}"></script>
         <script>
             $(document).ready(function() {
                 // Filter step navigation
@@ -701,11 +856,46 @@
                     // Countries remain selectable either way
                 });
 
+                // Connect category selection to filtering
+                $('.filter-category').on('change', function() {
+                    updateSelectedCategoriesBadges();
+                    // Pre-load the countries data for the next step
+                    filterCountriesByCategories();
+                });
+
+                // Apply filters button
+                $('#applyFilters').on('click', function() {
+                    const categories = [];
+                    $('.filter-category:checked').each(function() {
+                        categories.push($(this).val());
+                    });
+                    
+                    const isGlobal = $('#filter_global').is(':checked');
+                    
+                    const countries = [];
+                    $('.filter-country:checked').each(function() {
+                        countries.push($(this).val());
+                    });
+                    
+                    const purposes = [];
+                    $('.filter-purpose:checked').each(function() {
+                        purposes.push($(this).val());
+                    });
+                    
+                    const minRating = parseFloat($('#filter_rating').val());
+                    const sortByRating = $('#sortByRating').is(':checked');
+                    
+                    fetchFilteredSites(categories, isGlobal, countries, purposes, minRating, sortByRating);
+                    
+                    // Update filter badges
+                    updateFilterBadges(categories, isGlobal, countries, purposes, minRating);
+                });
+                
                 // Reset filters
                 $('#resetFilters').on('click', function() {
                     // Reset all checkboxes
                     $('.filter-category, .filter-country, .filter-purpose, #filter_global').prop('checked', false);
-                    $('.filter-country').prop('disabled', false);
+                    $('.filter-country, .filter-purpose').closest('.form-check').removeClass('unsupported-option');
                     $('#filter_countriesContainer').removeClass('opacity-50 border-primary');
                     
                     // Reset rating slider
@@ -715,1726 +905,262 @@
                     // Set sort option to default
                     $('#sortByRating').prop('checked', true);
                     
-                    // Hide sites table and show no filters message
-                    $('#sitesTableContainer').addClass('d-none');
-                    $('#noFiltersMessage').removeClass('d-none');
+                    // Show sites table with default pagination if available
+                    if ($('tr.default-site-row').length > 0) {
+                        $('#sitesTableContainer').removeClass('d-none');
+                        $('#noFiltersMessage').addClass('d-none');
+                        $('tr.default-site-row').removeClass('d-none');
+                        $('.pagination-container').removeClass('d-none');
+                    } else {
+                        // Hide sites table and show no filters message
+                        $('#sitesTableContainer').addClass('d-none');
+                        $('#noFiltersMessage').removeClass('d-none');
+                    }
+                    
+                    // Hide filtered results elements
                     $('#no-results').addClass('d-none');
+                    $('tbody tr:not(.default-site-row):not(#loading-spinner):not(#no-results)').remove();
                     
                     // Hide Excel button
                     $('#copyToExcel').addClass('d-none');
                     
-                    // Clear filter badges
-                    updateFilterBadges();
+                    // Clear badges and compatibility notes
+                    $('#selectedCategoriesBadges, #selectedCategoriesBadges2, #selectedCategoriesBadges3').empty();
+                    $('.compatibility-note').remove();
+                    
+                    // Remove hide-incompatible classes
+                    $('#filter_countriesContainer, #step3 .border, #step4 .border').removeClass('hide-incompatible');
                     
                     // Reset to first step
                     $('.filter-step').removeClass('active').addClass('d-none');
                     $('#step1').removeClass('d-none').addClass('active');
                 });
+                
+                // Initial setup - make sure incompatible options are properly styled
+                updateSelectedCategoriesBadges();
 
-                // Apply filters
-                $('#applyFilters').on('click', function() {
-                    const selectedCategories = [];
-                    $('.filter-category:checked').each(function() {
-                        selectedCategories.push($(this).val());
-                    });
-                    
-                    const isGlobal = $('#filter_global').is(':checked');
-                    
-                    const selectedCountries = [];
-                    $('.filter-country:checked').each(function() {
-                        selectedCountries.push($(this).val());
-                    });
-                    
-                    const selectedPurposes = [];
-                    $('.filter-purpose:checked').each(function() {
-                        selectedPurposes.push($(this).val());
-                    });
-                    
-                    const minRating = parseFloat($('#filter_rating').val());
-                    const sortByRating = $('#sortByRating').is(':checked');
-                    
-                    // Update filter badges
-                    updateFilterBadges(selectedCategories, isGlobal, selectedCountries, selectedPurposes, minRating);
-                    
-                    // Fetch filtered sites
-                    fetchFilteredSites(selectedCategories, isGlobal, selectedCountries, selectedPurposes, minRating, sortByRating);
+                // Handle hide incompatible option for countries in filter panel
+                $('#hideIncompatibleCountries').on('change', function() {
+                    if ($(this).is(':checked')) {
+                        $('#filter_countriesContainer').addClass('hide-incompatible');
+                    } else {
+                        $('#filter_countriesContainer').removeClass('hide-incompatible');
+                    }
+                });
+
+                // Handle hide incompatible option for purposes in filter panel
+                $('#hideIncompatiblePurposes').on('change', function() {
+                    if ($(this).is(':checked')) {
+                        $('#step3').find('.border').addClass('hide-incompatible');
+                    } else {
+                        $('#step3').find('.border').removeClass('hide-incompatible');
+                    }
+                });
+            });
+
+            // Function to filter purposes based on selected categories
+            function filterPurposesByCategories() {
+                const selectedCategories = [];
+                $('.filter-category:checked').each(function() {
+                    selectedCategories.push(parseInt($(this).val()));
                 });
                 
-                // Copy to Excel functionality
-                $('#copyToExcel').on('click', function() {
-                    const tableData = [];
-                    
-                    // Get headers
-                    const headers = [];
-                    $('#sitesTableContainer table thead th').each(function() {
-                        headers.push($(this).text());
-                    });
-                    
-                    // Remove the Actions column header
-                    headers.pop();
-                    
-                    tableData.push(headers);
-                    
-                    // Get rows data
-                    $('#sitesTableContainer table tbody tr:not(#loading-spinner):not(#no-results)').each(function() {
-                        const rowData = [];
-                        $(this).find('td:not(:last-child)').each(function() {
-                            // Get text content, removing any HTML
-                            rowData.push($(this).text().trim());
-                        });
+                if (selectedCategories.length === 0) {
+                    // Reset if no categories selected
+                    $('.filter-purpose').closest('.form-check').removeClass('unsupported-option');
+                    return;
+                }
+                
+                // Add loading indicator
+                const loadingHtml = '<div class="loading-indicator py-2 text-center"><div class="spinner-border spinner-border-sm text-primary me-2"></div><span>Loading compatible purposes...</span></div>';
+                $('#selectedCategoriesBadges2').append(loadingHtml);
+                
+                // Fetch compatible purposes from server
+                $.ajax({
+                    type: "GET",
+                    url: routeUrls.compatibleOptions,
+                    data: {
+                        categories: selectedCategories,
+                        option_types: ['purposes']
+                    },
+                    dataType: "json",
+                    success: function(response) {
+                        // Remove loading indicator
+                        $('.loading-indicator').remove();
                         
-                        if (rowData.length > 0) {
-                            tableData.push(rowData);
-                        }
-                    });
-                    
-                    // Convert to Excel format (tab-separated values)
-                    let excelContent = '';
-                    tableData.forEach(row => {
-                        excelContent += row.join('\t') + '\n';
-                    });
-                    
-                    // Copy to clipboard
-                    copyToClipboard(excelContent);
-                    
-                    // Show feedback
-                    const originalText = $(this).html();
-                    $(this).html('<i class="fas fa-check me-1"></i> Copied!');
-                    
-                    setTimeout(() => {
-                        $(this).html(originalText);
-                    }, 2000);
-                });
-                
-                // Function to copy to clipboard
-                function copyToClipboard(text) {
-                    const textarea = document.createElement('textarea');
-                    textarea.value = text;
-                    document.body.appendChild(textarea);
-                    textarea.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(textarea);
-                }
-
-                // Update filter badges
-                function updateFilterBadges(categories = [], isGlobal = false, countries = [], purposes = [], rating = 0) {
-                    const $badges = $('#filterBadges');
-                    $badges.empty();
-                    
-                    if (categories.length === 0 && countries.length === 0 && purposes.length === 0 && rating === 0) {
-                        return;
-                    }
-                    
-                    if (categories.length > 0) {
-                        $badges.append(`<span class="badge bg-primary me-1">Categories: ${categories.length}</span>`);
-                    }
-                    
-                    if (isGlobal) {
-                        $badges.append(`<span class="badge bg-info me-1">Global</span>`);
-                    } else if (countries.length > 0) {
-                        $badges.append(`<span class="badge bg-info me-1">Countries: ${countries.length}</span>`);
-                    }
-                    
-                    if (purposes.length > 0) {
-                        $badges.append(`<span class="badge bg-secondary me-1">Purposes: ${purposes.length}</span>`);
-                    }
-                    
-                    if (rating > 0) {
-                        $badges.append(`<span class="badge bg-success me-1">Min Rating: ${rating}</span>`);
-                    }
-                }
-
-                // Show loading spinner
-                function showLoading() {
-                    $('tbody tr:not(#loading-spinner, #no-results)').hide();
-                    $('#loading-spinner').show();
-                    $('#no-results').addClass('d-none');
-                }
-
-                function hideLoading() {
-                    $('#loading-spinner').hide();
-                }
-
-                // Fetch filtered sites
-                function fetchFilteredSites(categories, isGlobal, countries, purposes, minRating, sortByRating) {
-                    // Show sites table and hide no filters message
-                    $('#noFiltersMessage').addClass('d-none');
-                    $('#sitesTableContainer').removeClass('d-none');
-                    $('#no-results').addClass('d-none'); // Hide no results message at start
-                    
-                    showLoading();
-                    
-                    // Debug info in console
-                    console.log('Fetching sites with filters:', {
-                        categories: categories,
-                        is_global: isGlobal,
-                        countries: countries,
-                        purposes: purposes,
-                        min_rating: minRating,
-                        sort_by_rating: sortByRating
-                    });
-                    
-                    // Create a debug message to show on the page
-                    const debugInfoHtml = `
-                        <div id="debug-info" class="alert alert-info mb-3">
-                            <small>
-                                <strong>Debug Info:</strong><br>
-                                Categories: ${categories.length ? categories.join(', ') : 'None'}<br>
-                                Global: ${isGlobal ? 'Yes' : 'No'}<br>
-                                Countries: ${countries.length ? countries.join(', ') : 'None'}<br>
-                                Purposes: ${purposes.length ? purposes.join(', ') : 'None'}<br>
-                                Min Rating: ${minRating}<br>
-                                Sort by Rating: ${sortByRating ? 'Yes' : 'No'}
-                            </small>
-                            <button class="btn-close btn-sm float-end" onclick="$('#debug-info').remove()"></button>
-                        </div>
-                    `;
-                    
-                    // Show debug info at the top of the sites table
-                    $('#sitesTableContainer').prepend(debugInfoHtml);
-                    
-                    $.ajax({
-                        type: "GET",
-                        url: "{{ route('sites.fetch') }}",
-                        data: {
-                            categories: categories,
-                            is_global: isGlobal ? 1 : 0,
-                            countries: countries,
-                            purposes: purposes,
-                            min_rating: minRating,
-                            sort_by_rating: sortByRating ? 1 : 0
-                        },
-                        dataType: "json",
-                        success: function(response) {
-                            console.log('Response received:', response); // Debug log
+                        if (!response.success) {
+                            // Show error
+                            const errorMsg = $('<div class="alert alert-danger py-1 px-2 mt-1" style="font-size: 0.8rem;"><i class="fas fa-exclamation-triangle"></i> Error loading compatible purposes</div>');
+                            $('#selectedCategoriesBadges2').append(errorMsg);
                             
-                            // Remove existing site rows
-                            $('tbody tr:not(#loading-spinner, #no-results)').remove();
-                            
-                            if (!response.sites || response.sites.length === 0) {
-                                hideLoading();
-                                $('#no-results').removeClass('d-none');
-                                $('#copyToExcel').addClass('d-none');
-                                
-                                // Add message about no results matching the filters
-                                $('#no-results td').html(`
-                                    <div class="text-center py-4">
-                                        <i class="fas fa-search fa-2x text-muted mb-3"></i>
-                                        <h5 class="text-muted">No matching sites found</h5>
-                                        <p class="text-muted">Try adjusting your filter criteria</p>
-                                    </div>
-                                `);
-                                return;
-                            }
-                            
-                            // Show Excel button when we have results
-                            $('#copyToExcel').removeClass('d-none');
-                            
-                            $.each(response.sites, function(index, site) {
-                                // Add a color class based on rating
-                                let ratingClass = '';
-                                if (site.rating >= 7) {
-                                    ratingClass = 'text-success fw-bold';
-                                } else if (site.rating >= 4) {
-                                    ratingClass = 'text-warning';
-                                } else {
-                                    ratingClass = 'text-danger';
-                                }
-                                
-                                // Safely handle null or undefined values
-                                const siteName = site.name || 'Unnamed';
-                                const siteUrl = site.url || '#';
-                                const siteStatus = site.status || 'unknown';
-                                const siteRating = typeof site.rating === 'number' ? site.rating.toFixed(1) : '0.0';
-                                const siteMaxRating = site.max_rating || 10;
-                                const categoriesList = site.categories_list || 'None';
-                                const countriesList = site.countries_list || 'None';
-                                
-                                $('tbody').append(`
-                                    <tr>
-                                        <td>${siteUrl}</td>
-                                        <td>${site.da || 'N/A'}</td>
-                                        <td>${siteStatus}</td>
-                                        <td class="${ratingClass}">${siteRating} / ${siteMaxRating}</td>
-                                        <td>${categoriesList}</td>
-                                        <td>${countriesList}</td>
-                                        <td>
-                                            <div class="btn-group" role="group" aria-label="Basic example">
-                                                @if(auth()->user()->canManageSites())
-                                                <button type="button" value="${site.id}" class="btn btn-primary edit-btn"><i class='bx bxs-edit'></i></button>
-                                                <button type="button" value="${site.id}" class="btn btn-danger delete-btn"><i class='bx bxs-trash'></i></button>
-                                                @else
-                                                <button type="button" class="btn btn-secondary" disabled><i class='bx bxs-lock'></i></button>
-                                                @endif
-                                            </div>
-                                        </td>
-                                    </tr>
-                                `);
-                            });
-                            hideLoading();
-                        },
-                        error: function(xhr, status, error) {
-                            console.error("Error fetching sites:", xhr.responseText, status, error);
-                            hideLoading();
-                            $('#no-results').removeClass('d-none');
-                            
-                            // Show detailed error in the no-results element
-                            let errorMessage = 'Failed to load sites';
-                            let detailMessage = '';
-                            
-                            try {
-                                const responseObj = JSON.parse(xhr.responseText);
-                                if (responseObj && responseObj.message) {
-                                    detailMessage = responseObj.message;
-                                }
-                            } catch(e) {
-                                detailMessage = `${error}: ${xhr.responseText || 'Unknown error'}`;
-                            }
-                            
-                            // Display the error in the no-results area
-                            $('#no-results td').html(`
-                                <div class="text-center py-4">
-                                    <i class="fas fa-exclamation-triangle fa-2x text-danger mb-3"></i>
-                                    <h5 class="text-danger">Error Loading Sites</h5>
-                                    <p class="text-muted">${detailMessage}</p>
-                                    <button class="btn btn-sm btn-outline-primary mt-2" onclick="$('#resetFilters').click()">
-                                        Reset Filters
-                                    </button>
-                                </div>
-                            `);
-                            
-                            Swal.fire({
-                                title: 'Error!',
-                                text: errorMessage + '. ' + detailMessage,
-                                icon: 'error',
-                                allowOutsideClick: true,
-                                showConfirmButton: true
-                            });
-                        },
-                        timeout: 20000 // 20 second timeout to prevent infinite loading
-                    });
-                }
-
-                // Handle global checkbox for countries in add form - modified to NOT disable countries
-                $('#isGlobal').on('change', function() {
-                    // Visual indicator that global is selected, but allow country selection
-                    if ($(this).is(':checked')) {
-                        $('#countriesContainer').addClass('border-primary');
-                    } else {
-                        $('#countriesContainer').removeClass('border-primary');
-                    }
-                    // Countries remain selectable either way
-                });
-
-                // Handle global checkbox for countries in edit modal - modified to NOT disable countries
-                $('#edit_isGlobal').on('change', function() {
-                    // Visual indicator that global is selected, but allow country selection
-                    if ($(this).is(':checked')) {
-                        $('#edit_countriesContainer').addClass('border-primary');
-                    } else {
-                        $('#edit_countriesContainer').removeClass('border-primary');
-                    }
-                    // Countries remain selectable either way
-                });
-
-                // Calculate rating for add form
-                $('.feature-checkbox').on('change', function() {
-                    updateRating();
-                });
-
-                // Calculate rating for edit form
-                $('.edit-feature-checkbox').on('change', function() {
-                    updateEditRating();
-                });
-
-                // Category compatibility filtering in Add Site modal
-                $('.add-category').on('change', function() {
-                    updateSelectedCategoriesBadgesAddForm();
-                    filterAddFormOptionsByCategories();
-                });
-                
-                // Update selected categories badges in Add form
-                function updateSelectedCategoriesBadgesAddForm() {
-                    const $badgesContainer = $('#selectedCategoriesBadgesAddForm');
-                    $badgesContainer.empty();
-                    
-                    if ($('.add-category:checked').length === 0) {
-                        // Reset all filters if no categories selected
-                        $('.add-country, .add-purpose, .add-feature').closest('.form-check').removeClass('unsupported-option');
-                        $('#countryCompatibilityNoteAdd, #purposeCompatibilityNoteAdd, #featureCompatibilityNoteAdd').addClass('d-none');
-                        return;
-                    }
-                    
-                    $badgesContainer.append('<small class="text-muted d-block mb-1">Compatible with:</small>');
-                    
-                    $('.add-category:checked').each(function() {
-                        const categoryName = $(this).data('category-name');
-                        const categoryId = $(this).val();
-                        $badgesContainer.append(`
-                            <span class="badge bg-primary category-badge" data-category-id="${categoryId}">
-                                ${categoryName}
-                            </span>
-                        `);
-                    });
-                }
-                
-                // Filter Add form options based on selected categories
-                function filterAddFormOptionsByCategories() {
-                    const selectedCategories = [];
-                    $('.add-category:checked').each(function() {
-                        selectedCategories.push($(this).val());
-                    });
-                    
-                    if (selectedCategories.length === 0) {
-                        // Reset filters if no categories selected
-                        $('.add-country, .add-purpose, .add-feature').closest('.form-check').removeClass('unsupported-option');
-                        $('#countryCompatibilityNoteAdd, #purposeCompatibilityNoteAdd, #featureCompatibilityNoteAdd').addClass('d-none');
-                        return;
-                    }
-                    
-                    // Show compatibility notes
-                    $('#countryCompatibilityNoteAdd, #purposeCompatibilityNoteAdd, #featureCompatibilityNoteAdd').removeClass('d-none');
-                    
-                    // Show loading indicator
-                    const loadingHtml = '<div class="text-center my-2"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> <small class="text-muted">Loading compatible options...</small></div>';
-                    $('#selectedCategoriesBadgesAddForm').append(loadingHtml);
-                    
-                    // Add debug info to console
-                    console.log('Fetching compatible options for categories:', selectedCategories);
-                    
-                    // Batch all requests into a single AJAX call to improve performance
-                    $.ajax({
-                        type: "GET",
-                        url: "{{ route('sites.compatible-options') }}",
-                        data: {
-                            categories: selectedCategories,
-                            option_types: ['countries', 'purposes', 'features']
-                        },
-                        dataType: "json",
-                        success: function(response) {
-                            // Remove loading indicator
-                            $('#selectedCategoriesBadgesAddForm .spinner-border').parent().remove();
-                            
-                            console.log('Compatible options response:', response);
-                            
-                            if (!response.success) {
-                                // Show error message
-                                const errorMsg = $('<div class="alert alert-danger py-1 px-2 mt-1" style="font-size: 0.8rem;"><i class="fas fa-exclamation-triangle"></i> Error loading compatibility data</div>');
-                                $('#selectedCategoriesBadgesAddForm').append(errorMsg);
-                                
-                                // If error, show all options rather than none
-                                $('.add-country, .add-purpose, .add-feature').closest('.form-check').removeClass('unsupported-option');
-                                
-                                setTimeout(() => {
-                                    errorMsg.fadeOut(300, function() { $(this).remove(); });
-                                }, 3000);
-                                
-                                return;
-                            }
-                            
-                            // Reset all checkboxes
-                            $('.add-country, .add-purpose, .add-feature').prop('checked', false).closest('.form-check').addClass('unsupported-option');
-                            
-                            // Process countries
-                            if (response.countries && response.countries.length > 0) {
-                                response.countries.forEach(function(countryId) {
-                                    $(`#country${countryId}`).closest('.form-check').removeClass('unsupported-option');
-                                });
-                            }
-                            
-                            // Process work purposes
-                            if (response.purposes && response.purposes.length > 0) {
-                                response.purposes.forEach(function(purposeId) {
-                                    $(`#purpose${purposeId}`).closest('.form-check').removeClass('unsupported-option');
-                                });
-                            }
-                            
-                            // Process features
-                            if (response.features && response.features.length > 0) {
-                                response.features.forEach(function(featureId) {
-                                    $(`#feature${featureId}`).closest('.form-check').removeClass('unsupported-option');
-                                });
-                            }
-                            
-                            // Update rating after features change
-                            updateRating();
-                        },
-                        error: function(xhr, status, error) {
-                            // Remove loading indicator
-                            $('#selectedCategoriesBadgesAddForm .spinner-border').parent().remove();
-                            
-                            console.error('Compatible options error:', error, xhr.responseText);
-                            
-                            // Show error message that disappears after 3 seconds
-                            const errorMsg = $('<div class="alert alert-danger py-1 px-2 mt-1 mb-0" style="font-size: 0.8rem;"><i class="fas fa-exclamation-triangle"></i> Error loading compatibility data</div>');
-                            $('#selectedCategoriesBadgesAddForm').append(errorMsg);
-                            
-                            // If error, show all options rather than none
-                            $('.add-country, .add-purpose, .add-feature').closest('.form-check').removeClass('unsupported-option');
-                            
+                            // Remove after 3 seconds
                             setTimeout(() => {
                                 errorMsg.fadeOut(300, function() { $(this).remove(); });
                             }, 3000);
-                        },
-                        timeout: 15000 // 15 second timeout to prevent infinite loading
-                    });
-                }
-
-                // Function to update the rating progress bar and values
-                function updateRating() {
-                    let totalPoints = 0;
-                    let maxPoints = parseInt($('#maxRating').text());
-                    
-                    $('.feature-checkbox:checked').each(function() {
-                        totalPoints += parseInt($(this).data('points'));
-                    });
-                    
-                    const percentage = (totalPoints / maxPoints) * 100;
-                    $('#currentRating').text(totalPoints);
-                    $('#ratingProgress').css('width', percentage + '%').attr('aria-valuenow', percentage).text(Math.round(percentage) + '%');
-                    
-                    // Change progress bar color based on rating
-                    if (percentage < 33) {
-                        $('#ratingProgress').removeClass('bg-warning bg-success').addClass('bg-danger');
-                    } else if (percentage < 66) {
-                        $('#ratingProgress').removeClass('bg-danger bg-success').addClass('bg-warning');
-                    } else {
-                        $('#ratingProgress').removeClass('bg-danger bg-warning').addClass('bg-success');
-                    }
-                }
-
-                // Function to update the rating progress bar and values for edit form
-                function updateEditRating() {
-                    let totalPoints = 0;
-                    let maxPoints = parseInt($('#edit_maxRating').text());
-                    
-                    $('.edit-feature-checkbox:checked').each(function() {
-                        totalPoints += parseInt($(this).data('points'));
-                    });
-                    
-                    const percentage = (totalPoints / maxPoints) * 100;
-                    $('#edit_currentRating').text(totalPoints);
-                    $('#edit_ratingProgress').css('width', percentage + '%').attr('aria-valuenow', percentage).text(Math.round(percentage) + '%');
-                    
-                    // Change progress bar color based on rating
-                    if (percentage < 33) {
-                        $('#edit_ratingProgress').removeClass('bg-warning bg-success').addClass('bg-danger');
-                    } else if (percentage < 66) {
-                        $('#edit_ratingProgress').removeClass('bg-danger bg-success').addClass('bg-warning');
-                    } else {
-                        $('#edit_ratingProgress').removeClass('bg-danger bg-warning').addClass('bg-success');
-                    }
-                }
-
-                // Reset forms when closing modal
-                $('#AddSiteModal').on('hidden.bs.modal', function () {
-                    $('#addSiteForm')[0].reset();
-                    $('.country-checkbox').prop('disabled', false);
-                    $('#countriesContainer').removeClass('opacity-50');
-                    updateRating();
-                    
-                    // Reset compatibility filtering
-                    $('.add-country, .add-purpose, .add-feature').closest('.form-check').removeClass('unsupported-option');
-                    $('#selectedCategoriesBadgesAddForm').empty();
-                    $('#countryCompatibilityNoteAdd, #purposeCompatibilityNoteAdd, #featureCompatibilityNoteAdd').addClass('d-none');
-                });
-
-                $('#EditModal').on('hidden.bs.modal', function () {
-                    $('#edit_countriesContainer').removeClass('opacity-50');
-                    $('.edit-country-checkbox').prop('disabled', false);
-                    
-                    // Reset compatibility filtering
-                    $('.edit-country, .edit-purpose, .edit-feature').closest('.form-check').removeClass('unsupported-option');
-                    $('#selectedCategoriesBadgesEditForm').empty();
-                    $('#countryCompatibilityNoteEdit, #purposeCompatibilityNoteEdit, #featureCompatibilityNoteEdit').addClass('d-none');
-                });
-                
-                // When edit modal is shown, apply compatibility filtering based on selected categories
-                $('#EditModal').on('shown.bs.modal', function () {
-                    updateSelectedCategoriesBadgesEditForm();
-                    if ($('.edit-category:checked').length > 0) {
-                        filterEditFormOptionsByCategories();
-                    }
-                });
-                
-                // Category compatibility filtering in Edit Site modal
-                $('.edit-category').on('change', function() {
-                    updateSelectedCategoriesBadgesEditForm();
-                    filterEditFormOptionsByCategories();
-                });
-                
-                // Update selected categories badges in Edit form
-                function updateSelectedCategoriesBadgesEditForm() {
-                    const $badgesContainer = $('#selectedCategoriesBadgesEditForm');
-                    $badgesContainer.empty();
-                    
-                    if ($('.edit-category:checked').length === 0) {
-                        // Reset all filters if no categories selected
-                        $('.edit-country, .edit-purpose, .edit-feature').closest('.form-check').removeClass('unsupported-option');
-                        $('#countryCompatibilityNoteEdit, #purposeCompatibilityNoteEdit, #featureCompatibilityNoteEdit').addClass('d-none');
-                        return;
-                    }
-                    
-                    $badgesContainer.append('<small class="text-muted d-block mb-1">Compatible with:</small>');
-                    
-                    $('.edit-category:checked').each(function() {
-                        const categoryName = $(this).data('category-name');
-                        const categoryId = $(this).val();
-                        $badgesContainer.append(`
-                            <span class="badge bg-primary category-badge" data-category-id="${categoryId}">
-                                ${categoryName}
-                            </span>
-                        `);
-                    });
-                }
-                
-                // Filter Edit form options based on selected categories
-                function filterEditFormOptionsByCategories() {
-                    const selectedCategories = [];
-                    $('.edit-category:checked').each(function() {
-                        selectedCategories.push($(this).val());
-                    });
-                    
-                    if (selectedCategories.length === 0) {
-                        // Reset filters if no categories selected
-                        $('.edit-country, .edit-purpose, .edit-feature').closest('.form-check').removeClass('unsupported-option');
-                        $('#countryCompatibilityNoteEdit, #purposeCompatibilityNoteEdit, #featureCompatibilityNoteEdit').addClass('d-none');
-                        return;
-                    }
-                    
-                    // Show compatibility notes
-                    $('#countryCompatibilityNoteEdit, #purposeCompatibilityNoteEdit, #featureCompatibilityNoteEdit').removeClass('d-none');
-                    
-                    // Show loading indicator
-                    const loadingHtml = '<div class="text-center my-2"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> <small class="text-muted">Loading compatible options...</small></div>';
-                    $('#selectedCategoriesBadgesEditForm').append(loadingHtml);
-                    
-                    // Batch all requests into a single AJAX call to improve performance
-                    $.ajax({
-                        type: "GET",
-                        url: "{{ route('sites.compatible-options') }}",
-                        data: {
-                            categories: selectedCategories,
-                            option_types: ['countries', 'purposes', 'features']
-                        },
-                        dataType: "json",
-                        success: function(response) {
-                            // Remove loading indicator
-                            $('#selectedCategoriesBadgesEditForm .spinner-border').parent().remove();
-                            
-                            console.log('Compatible options response:', response);
-                            
-                            if (!response.success) {
-                                // Show error message
-                                const errorMsg = $('<div class="alert alert-danger py-1 px-2 mt-1" style="font-size: 0.8rem;"><i class="fas fa-exclamation-triangle"></i> Error loading compatibility data</div>');
-                                $('#selectedCategoriesBadgesEditForm').append(errorMsg);
-                                
-                                // If error, show all options rather than none
-                                $('.edit-country, .edit-purpose, .edit-feature').closest('.form-check').removeClass('unsupported-option');
-                                
-                                setTimeout(() => {
-                                    errorMsg.fadeOut(300, function() { $(this).remove(); });
-                                }, 3000);
-                                
-                                return;
-                            }
-                            
-                            // Reset all checkboxes
-                            $('.edit-country, .edit-purpose, .edit-feature').prop('checked', false).closest('.form-check').addClass('unsupported-option');
-                            
-                            // Process countries
-                            if (response.countries && response.countries.length > 0) {
-                                response.countries.forEach(function(countryId) {
-                                    $(`#edit_country${countryId}`).closest('.form-check').removeClass('unsupported-option');
-                                });
-                            }
-                            
-                            // Process work purposes
-                            if (response.purposes && response.purposes.length > 0) {
-                                response.purposes.forEach(function(purposeId) {
-                                    $(`#edit_purpose${purposeId}`).closest('.form-check').removeClass('unsupported-option');
-                                });
-                            }
-                            
-                            // Process features
-                            if (response.features && response.features.length > 0) {
-                                response.features.forEach(function(featureId) {
-                                    $(`#edit_feature${featureId}`).closest('.form-check').removeClass('unsupported-option');
-                                });
-                            }
-                            
-                            // Uncheck incompatible selected options
-                            $('.edit-country:checked, .edit-purpose:checked, .edit-feature:checked').each(function() {
-                                if ($(this).closest('.form-check').hasClass('unsupported-option')) {
-                                    $(this).prop('checked', false);
-                                }
-                            });
-                            
-                            // Update rating after features change
-                            updateEditRating();
-                        },
-                        error: function(xhr, status, error) {
-                            // Remove loading indicator
-                            $('#selectedCategoriesBadgesEditForm .spinner-border').parent().remove();
-                            
-                            console.error('Compatible options error:', error, xhr.responseText);
-                            
-                            // Show error message that disappears after 3 seconds
-                            const errorMsg = $('<div class="alert alert-danger py-1 px-2 mt-1 mb-0" style="font-size: 0.8rem;"><i class="fas fa-exclamation-triangle"></i> Error loading compatibility data</div>');
-                            $('#selectedCategoriesBadgesEditForm').append(errorMsg);
-                            
-                            // If error, show all options rather than none
-                            $('.edit-country, .edit-purpose, .edit-feature').closest('.form-check').removeClass('unsupported-option');
-                            
-                            setTimeout(() => {
-                                errorMsg.fadeOut(300, function() { $(this).remove(); });
-                            }, 3000);
-                        },
-                        timeout: 15000 // 15 second timeout to prevent infinite loading
-                    });
-                }
-
-                // Add loading state to delete action
-                $('tbody').on('click', '.delete-btn', function(e) {
-                    e.preventDefault();
-                    var siteId = $(this).val();
-                    var deleteButton = $(this);
-
-                    Swal.fire({
-                        title: 'Are you sure?',
-                        text: "You won't be able to revert this!",
-                        icon: 'warning',
-                        showCancelButton: true,
-                        confirmButtonColor: '#3085d6',
-                        cancelButtonColor: '#d33',
-                        confirmButtonText: 'Yes, delete it!'
-                    }).then((result) => {
-                        if (result.isConfirmed) {
-                            // Disable the delete button and show loading state
-                            deleteButton.prop('disabled', true).html(
-                                '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>'
-                                );
-
-                            $.ajax({
-                                type: "DELETE",
-                                url: "{{ route('sites.destroy', '') }}/" + siteId,
-                                data: {
-                                    '_token': $('meta[name="csrf-token"]').attr('content')
-                                },
-                                success: function(response) {
-                                    deleteButton.prop('disabled', false).html(
-                                        '<i class="bx bxs-trash"></i>');
-                                    if (response.status === 200) {
-                                        Swal.fire({
-                                            title: 'Deleted!',
-                                            text: response.message ||
-                                                'Site has been deleted.',
-                                            icon: 'success',
-                                            allowOutsideClick: true,
-                                            showConfirmButton: true,
-                                            didOpen: () => {
-                                                const popup = Swal.getPopup();
-                                                popup.setAttribute('draggable',
-                                                    'true');
-                                            }
-                                        }).then(() => {
-                                            fetchSites();
-                                        });
-                                    } else {
-                                        Swal.fire({
-                                            title: 'Error!',
-                                            text: response.message ||
-                                                'Failed to delete site.',
-                                            icon: 'error',
-                                            allowOutsideClick: true,
-                                            showConfirmButton: true,
-                                            didOpen: () => {
-                                                const popup = Swal.getPopup();
-                                                popup.setAttribute('draggable',
-                                                    'true');
-                                            }
-                                        });
-                                    }
-                                },
-                                error: function(xhr) {
-                                    deleteButton.prop('disabled', false).html(
-                                        '<i class="bx bxs-trash"></i>');
-                                    Swal.fire({
-                                        title: 'Error!',
-                                        text: xhr.responseJSON?.message ||
-                                            'Something went wrong!',
-                                        icon: 'error',
-                                        allowOutsideClick: true,
-                                        showConfirmButton: true,
-                                        didOpen: () => {
-                                            const popup = Swal.getPopup();
-                                            popup.setAttribute('draggable',
-                                                'true');
-                                        }
-                                    });
-                                }
-                            });
+                            return;
                         }
-                    });
-                });
-
-                // Add loading state to edit action
-                $('tbody').on('click', '.edit-btn', function(e) {
-                    e.preventDefault();
-                    var siteId = $(this).val();
-                    var editButton = $(this);
-
-                    // Disable the edit button and show loading state
-                    editButton.prop('disabled', true).html(
-                        '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>'
-                        );
-
-                    $.ajax({
-                        type: "GET",
-                        url: "{{ route('sites.edit', '') }}/" + siteId,
-                        success: function(response) {
-                            editButton.prop('disabled', false).html('<i class="bx bxs-edit"></i>');
-                            if (response.status === 200) {
-                                $('#EditModal').modal('show');
-                                
-                                // Populate basic fields
-                                $('#edit_id').val(response.site.id);
-                                $('#edit_url').val(response.site.url);
-                                $('#edit_da').val(response.site.da);
-                                $('#edit_description').val(response.site.description);
-                                $('#edit_status').val(response.site.status);
-                                $('#edit_type').val(response.site.type);
-                                $('#edit_theme').val(response.site.theme);
-                                
-                                // Reset all checkboxes first
-                                $('input[name="categories[]"]').prop('checked', false);
-                                $('input[name="countries[]"]').prop('checked', false);
-                                $('input[name="purposes[]"]').prop('checked', false);
-                                $('input[name="features[]"]').prop('checked', false);
-                                
-                                // Set categories
-                                if (response.site_categories) {
-                                    response.site_categories.forEach(function(categoryId) {
-                                        $('#edit_category' + categoryId).prop('checked', true);
-                                    });
-                                }
-                                
-                                // Set countries and global flag
-                                if (response.is_global) {
-                                    $('#edit_isGlobal').prop('checked', true);
-                                    $('.edit-country-checkbox').prop('disabled', true);
-                                    $('#edit_countriesContainer').addClass('opacity-50');
-                                } else {
-                                    $('#edit_isGlobal').prop('checked', false);
-                                    $('.edit-country-checkbox').prop('disabled', false);
-                                    $('#edit_countriesContainer').removeClass('opacity-50');
-                                    
-                                    if (response.site_countries) {
-                                        response.site_countries.forEach(function(countryId) {
-                                            $('#edit_country' + countryId).prop('checked', true);
-                                        });
-                                    }
-                                }
-                                
-                                // Set work purposes
-                                if (response.site_purposes) {
-                                    response.site_purposes.forEach(function(purposeId) {
-                                        $('#edit_purpose' + purposeId).prop('checked', true);
-                                    });
-                                }
-                                
-                                // Set features
-                                if (response.site_features) {
-                                    response.site_features.forEach(function(featureId) {
-                                        $('#edit_feature' + featureId).prop('checked', true);
-                                    });
-                                    updateEditRating();
-                                }
-                            } else {
-                                Swal.fire({
-                                    title: "Error!",
-                                    text: response.message ||
-                                        "Failed to fetch site details.",
-                                    icon: "error",
-                                    allowOutsideClick: true,
-                                    showConfirmButton: true,
-                                    didOpen: () => {
-                                        const popup = Swal.getPopup();
-                                        popup.setAttribute('draggable', 'true');
-                                    }
-                                });
-                            }
-                        },
-                        error: function(xhr) {
-                            editButton.prop('disabled', false).html('<i class="bx bxs-edit"></i>');
-                            Swal.fire({
-                                title: "Error!",
-                                text: "Failed to load site details.",
-                                icon: "error",
-                                allowOutsideClick: true,
-                                showConfirmButton: true
-                            });
-                        }
-                    });
-                });
-
-                $('.edit_btn').on('click', function(e) {
-                    e.preventDefault();
-
-                    // Collect selected categories, countries, purposes, and features
-                    const selectedCategories = [];
-                    $('input[name="categories[]"]:checked').each(function() {
-                        selectedCategories.push($(this).val());
-                    });
-                    
-                    const selectedCountries = [];
-                    $('input[name="countries[]"]:checked').each(function() {
-                        selectedCountries.push($(this).val());
-                    });
-                    
-                    const selectedPurposes = [];
-                    $('input[name="purposes[]"]:checked').each(function() {
-                        selectedPurposes.push($(this).val());
-                    });
-                    
-                    const selectedFeatures = [];
-                    $('input[name="features[]"]:checked').each(function() {
-                        selectedFeatures.push($(this).val());
-                    });
-
-                    const formData = {
-                        id: $('#edit_id').val(),
-                        url: $('#edit_url').val(),
-                        da: $('#edit_da').val(),
-                        description: $('#edit_description').val(),
-                        status: $('#edit_status').val(),
-                        type: $('#edit_type').val(),
-                        theme: $('#edit_theme').val(),
-                        categories: selectedCategories,
-                        is_global: $('#edit_isGlobal').is(':checked') ? 1 : 0,
-                        countries: selectedCountries,
-                        purposes: selectedPurposes,
-                        features: selectedFeatures,
-                        _token: $('meta[name="csrf-token"]').attr('content')
-                    };
-
-                    $.ajax({
-                        type: "PUT",
-                        url: "{{ route('sites.update', '') }}/" + formData.id,
-                        data: formData,
-                        dataType: "json",
-                        success: function(response) {
-                            if (response.status === 200) {
-                                $('#EditModal').modal('hide');
-                                Swal.fire({
-                                    title: "Site Updated!",
-                                    text: response.message || "Site updated successfully.",
-                                    icon: "success",
-                                    allowOutsideClick: true,
-                                    showConfirmButton: true,
-                                    didOpen: () => {
-                                        const popup = Swal.getPopup();
-                                        popup.setAttribute('draggable', 'true');
-                                    }
-                                }).then(() => {
-                                    fetchSites();
-                                });
-                            } else if (response.status === 200) {
-                                Swal.fire({
-                                    title: "Site Updated Failed!",
-                                    text: response.message || "Site Not found.",
-                                    icon: "error",
-                                    allowOutsideClick: true,
-                                    showConfirmButton: true,
-                                    didOpen: () => {
-                                        const popup = Swal.getPopup();
-                                        popup.setAttribute('draggable', 'true');
-                                    }
-                                })
-                            } else {
-                                Swal.fire("Error", response.message || "Something went wrong.",
-                                    "error");
-                            }
-                        },
-                        error: function(xhr) {
-                            $('#EditModal').modal('hide');
-                            Swal.fire("Error", "Update failed. Please try again.", "error");
-                        }
-                    });
-                });
-
-                $('.saveSiteBtn').on('click', function(e) {
-                    e.preventDefault();
-                    
-                    // Clear previous validation errors
-                    $('.is-invalid').removeClass('is-invalid');
-                    $('.invalid-feedback').text('');
-                    
-                    // Add loading state to the button
-                    const $btn = $(this);
-                    const originalText = $btn.html();
-                    $btn.html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...');
-                    $btn.prop('disabled', true);
-
-                    // Collect selected categories, countries, purposes, and features
-                    const selectedCategories = [];
-                    $('input[name="categories[]"]:checked').each(function() {
-                        selectedCategories.push($(this).val());
-                    });
-                    
-                    const selectedCountries = [];
-                    $('input[name="countries[]"]:checked').each(function() {
-                        selectedCountries.push($(this).val());
-                    });
-                    
-                    const selectedPurposes = [];
-                    $('input[name="purposes[]"]:checked').each(function() {
-                        selectedPurposes.push($(this).val());
-                    });
-                    
-                    const selectedFeatures = [];
-                    $('input[name="features[]"]:checked').each(function() {
-                        selectedFeatures.push($(this).val());
-                    });
-
-                    const formData = {
-                        url: $('#url').val(),
-                        da: $('#da').val(),
-                        description: $('#description').val(),
-                        status: $('#status').val(),
-                        type: $('#type').val(),
-                        theme: $('#theme').val(),
-                        categories: selectedCategories,
-                        is_global: $('#isGlobal').is(':checked') ? 1 : 0,
-                        countries: selectedCountries,
-                        purposes: selectedPurposes,
-                        features: selectedFeatures,
-                        _token: $('meta[name="csrf-token"]').attr('content')
-                    };
-
-                    $.ajax({
-                        type: "POST",
-                        url: "{{ route('sites.store') }}",
-                        data: formData,
-                        dataType: "json",
-                        success: function(response) {
-                            // Restore button state
-                            $btn.html(originalText);
-                            $btn.prop('disabled', false);
-                            
-                            if (response.status === 400) {
-                                // Handle validation errors
-                                if (response.errors) {
-                                    $.each(response.errors, function(field, messages) {
-                                        const $input = $('#' + field);
-                                        const $error = $('#' + field + '_error');
-                                        
-                                        $input.addClass('is-invalid');
-                                        $error.text(messages[0]);
-                                        
-                                        // Special handling for URL errors - show more prominently
-                                        if (field === 'url' && messages[0].includes('already registered')) {
-                                            Swal.fire({
-                                                title: 'Domain Already Exists',
-                                                text: messages[0],
-                                                icon: 'warning',
-                                                confirmButtonText: 'OK'
-                                            });
-                                        }
-                                    });
-                                }
-                                return;
-                            }
-                            
-                            $('#AddSiteModal').modal('hide');
-                            Swal.fire({
-                                title: response.status === 200 ? "Site Created!" : "Error!",
-                                text: response.message || (response.status === 200 ?
-                                    "Site added successfully." : "Something went wrong."
-                                ),
-                                icon: response.status === 200 ? "success" : "error",
-                                allowOutsideClick: true,
-                                showConfirmButton: true,
-                                didOpen: () => {
-                                    const popup = Swal.getPopup();
-                                    popup.setAttribute('draggable', 'true');
-                                    fetchSites();
-                                }
-                            });
-                        },
-                        error: function(xhr) {
-                            // Restore button state
-                            $btn.html(originalText);
-                            $btn.prop('disabled', false);
-                            
-                            $('#AddSiteModal').modal('hide');
-                            Swal.fire({
-                                title: "Error!",
-                                text: xhr.responseJSON?.message ||
-                                    "Failed to add site. Please try again.",
-                                icon: "error",
-                                allowOutsideClick: true,
-                                showConfirmButton: true,
-                                didOpen: () => {
-                                    const popup = Swal.getPopup();
-                                    popup.setAttribute('draggable', 'true');
-                                }
-                            });
-                        }
-                    });
-                });
-
-                // Update selected categories badges
-                function updateSelectedCategoriesBadges() {
-                    const $badgesContainer = $('#selectedCategoriesBadges');
-                    $badgesContainer.empty();
-                    
-                    if ($('.filter-category:checked').length === 0) {
-                        $badgesContainer.append('<div class="alert alert-warning">No categories selected. All options will be shown.</div>');
-                        return;
-                    }
-                    
-                    $badgesContainer.append('<label class="mb-2">Filtering options for categories:</label><br>');
-                    
-                    $('.filter-category:checked').each(function() {
-                        const categoryName = $(this).data('category-name');
-                        const categoryId = $(this).val();
-                        $badgesContainer.append(`
-                            <span class="badge bg-primary category-badge" data-category-id="${categoryId}">
-                                ${categoryName}
-                            </span>
-                        `);
-                    });
-                }
-                
-                // Filter countries based on selected categories
-                function filterCountriesByCategories() {
-                    const selectedCategories = [];
-                    $('.filter-category:checked').each(function() {
-                        selectedCategories.push($(this).val());
-                    });
-                    
-                    if (selectedCategories.length === 0) {
-                        // If no categories selected, show all countries
-                        $('.filter-country').closest('.form-check').removeClass('unsupported-option');
-                        return;
-                    }
-                    
-                    // Get compatible countries via AJAX
-                    $.ajax({
-                        type: "GET",
-                        url: "{{ route('sites.compatible-options') }}",
-                        data: {
-                            categories: selectedCategories,
-                            option_type: 'countries'
-                        },
-                        dataType: "json",
-                        success: function(response) {
-                            // Reset all countries
-                            $('.filter-country').prop('checked', false).closest('.form-check').addClass('unsupported-option');
-                            
-                            // Enable compatible countries
-                            if (response.compatible_options) {
-                                response.compatible_options.forEach(function(countryId) {
-                                    $(`#filter_country${countryId}`).closest('.form-check').removeClass('unsupported-option');
-                                });
-                            }
-                            
-                            // Add note about compatibility
-                            if (!$('#countryCompatibilityNote').length) {
-                                $('#filter_countriesContainer').after(
-                                    '<span id="countryCompatibilityNote" class="compatibility-note">' +
-                                    'Crossed-out options are not compatible with selected categories</span>'
-                                );
-                            }
-                        },
-                        error: function() {
-                            // If error, show all countries
-                            $('.filter-country').closest('.form-check').removeClass('unsupported-option');
-                        }
-                    });
-                }
-                
-                // Filter work purposes based on selected categories
-                function filterPurposesByCategories() {
-                    const selectedCategories = [];
-                    $('.filter-category:checked').each(function() {
-                        selectedCategories.push($(this).val());
-                    });
-                    
-                    if (selectedCategories.length === 0) {
-                        // If no categories selected, show all purposes
+                        
+                        const compatiblePurposes = response.purposes || [];
+                        
+                        // First reset all options to remove any previous unsupported-option classes
                         $('.filter-purpose').closest('.form-check').removeClass('unsupported-option');
-                        return;
-                    }
-                    
-                    // Get compatible purposes via AJAX
-                    $.ajax({
-                        type: "GET",
-                        url: "{{ route('sites.compatible-options') }}",
-                        data: {
-                            categories: selectedCategories,
-                            option_type: 'purposes'
-                        },
-                        dataType: "json",
-                        success: function(response) {
-                            // Reset all purposes
-                            $('.filter-purpose').prop('checked', false).closest('.form-check').addClass('unsupported-option');
-                            
-                            // Enable compatible purposes
-                            if (response.compatible_options) {
-                                response.compatible_options.forEach(function(purposeId) {
-                                    $(`#filter_purpose${purposeId}`).closest('.form-check').removeClass('unsupported-option');
-                                });
-                            }
-                            
-                            // Add note about compatibility
-                            if (!$('#purposeCompatibilityNote').length) {
-                                $('#step3 .border.p-3').after(
-                                    '<span id="purposeCompatibilityNote" class="compatibility-note">' +
-                                    'Crossed-out options are not compatible with selected categories</span>'
-                                );
-                            }
-                        },
-                        error: function() {
-                            // If error, show all purposes
-                            $('.filter-purpose').closest('.form-check').removeClass('unsupported-option');
-                        }
-                    });
-                }
-                
-                // Filter features based on selected categories
-                function filterFeaturesByCategories() {
-                    const selectedCategories = [];
-                    $('.filter-category:checked').each(function() {
-                        selectedCategories.push($(this).val());
-                    });
-                    
-                    if (selectedCategories.length === 0) {
-                        // If no categories selected, show all features
-                        $('.feature-checkbox').closest('.form-check').removeClass('unsupported-option');
-                        return;
-                    }
-                    
-                    // Get compatible features via AJAX
-                    $.ajax({
-                        type: "GET",
-                        url: "{{ route('sites.compatible-options') }}",
-                        data: {
-                            categories: selectedCategories,
-                            option_type: 'features'
-                        },
-                        dataType: "json",
-                        success: function(response) {
-                            // Reset all features
-                            $('.feature-checkbox').prop('checked', false).closest('.form-check').addClass('unsupported-option');
-                            
-                            // Enable compatible features
-                            if (response.compatible_options) {
-                                response.compatible_options.forEach(function(featureId) {
-                                    $(`#feature${featureId}`).closest('.form-check').removeClass('unsupported-option');
-                                });
-                            }
-                            
-                            // Add note about compatibility
-                            if (!$('#featureCompatibilityNote').length) {
-                                $('#step4 .border.p-3').after(
-                                    '<span id="featureCompatibilityNote" class="compatibility-note">' +
-                                    'Crossed-out options are not compatible with selected categories</span>'
-                                );
-                            }
-                        },
-                        error: function() {
-                            // If error, show all features
-                            $('.feature-checkbox').closest('.form-check').removeClass('unsupported-option');
-                        }
-                    });
-                }
-                
-                // When category selection changes, update next button state
-                $('.filter-category').on('change', function() {
-                    const anySelected = $('.filter-category:checked').length > 0;
-                    const $nextButton = $('#step1 .next-step');
-                    
-                    if (anySelected) {
-                        $nextButton.removeClass('btn-secondary').addClass('btn-primary');
-                        $nextButton.html('Next <i class="fas fa-arrow-right ms-1"></i>');
-                    } else {
-                        $nextButton.removeClass('btn-primary').addClass('btn-secondary');
-                        $nextButton.text('Next');
-                    }
-                });
-
-                // Function to get compatible options based on selected categories
-                function getCompatibleOptions(categoryIds) {
-                    // Show loading indicators for each section
-                    $('#countriesContainer, #selectedCategoriesBadgesAddForm').append('<div class="loading-spinner text-center my-2"><div class="spinner-border spinner-border-sm text-primary"></div> <small class="text-muted">Loading compatible options...</small></div>');
-                    
-                    $.ajax({
-                        url: '/sites/compatible-options',
-                        type: 'GET',
-                        data: { 
-                            categories: categoryIds,
-                            option_type: 'all'
-                        },
-                        success: function(response) {
-                            // Remove loading indicators
-                            $('.loading-spinner').remove();
-                            
-                            if (response.success) {
-                                // Update UI with compatible options
-                                updateCompatibleCountries(response.countries || []);
-                                updateCompatiblePurposes(response.purposes || []);
-                                updateCompatibleFeatures(response.features || []);
-                                
-                                // Add visual indicator showing which category is filtering 
-                                const categoryNames = [];
-                                categoryIds.forEach(function(id) {
-                                    const name = $(`#category${id}`).data('category-name');
-                                    if (name) categoryNames.push(name);
-                                });
-                                
-                                if (categoryNames.length > 0) {
-                                    const noteText = `Showing options compatible with: <strong>${categoryNames.join(', ')}</strong>`;
-                                    $('#compatibilityInfoNote').remove();
-                                    $('#selectedCategoriesBadgesAddForm').append(`<div id="compatibilityInfoNote" class="alert alert-info py-1 px-2 mt-2 mb-0"><i class="fas fa-info-circle me-1"></i> ${noteText}</div>`);
-                                }
-                            } else {
-                                console.error('Failed to get compatible options:', response.message);
-                            }
-                        },
-                        error: function(xhr) {
-                            // Remove loading indicators
-                            $('.loading-spinner').remove();
-                            
-                            console.error('Error fetching compatible options:', xhr.responseText);
-                            
-                            // Reset UI when error occurs
-                            $('.add-country, .add-purpose, .add-feature').prop('disabled', false)
-                                .closest('.form-check').removeClass('unsupported-option');
-                        }
-                    });
-                }
-
-                // Update country options based on compatibility
-                function updateCompatibleCountries(compatibleIds) {
-                    // Reset all countries first
-                    $('.add-country').prop('disabled', false).closest('.form-check').removeClass('unsupported-option');
-                    
-                    if (compatibleIds.length > 0) {
-                        // Disable incompatible options
-                        $('.add-country').each(function() {
-                            const countryId = parseInt($(this).val());
-                            if (!compatibleIds.includes(countryId)) {
-                                $(this).prop('disabled', true).prop('checked', false).closest('.form-check').addClass('unsupported-option');
-                            }
-                        });
-                        $('#countryCompatibilityNoteAdd').removeClass('d-none');
-                    } else {
-                        $('#countryCompatibilityNoteAdd').addClass('d-none');
-                    }
-                }
-
-                // Update purpose options based on compatibility
-                function updateCompatiblePurposes(compatibleIds) {
-                    // Reset all purposes first
-                    $('.add-purpose').prop('disabled', false).closest('.form-check').removeClass('unsupported-option');
-                    
-                    if (compatibleIds.length > 0) {
-                        // Disable incompatible options
-                        $('.add-purpose').each(function() {
-                            const purposeId = parseInt($(this).val());
-                            if (!compatibleIds.includes(purposeId)) {
-                                $(this).prop('disabled', true).prop('checked', false).closest('.form-check').addClass('unsupported-option');
-                            }
-                        });
-                        $('#purposeCompatibilityNoteAdd').removeClass('d-none');
-                    } else {
-                        $('#purposeCompatibilityNoteAdd').addClass('d-none');
-                    }
-                }
-
-                // Update feature options based on compatibility
-                function updateCompatibleFeatures(compatibleIds) {
-                    // Reset all features first
-                    $('.add-feature').prop('disabled', false).closest('.form-check').removeClass('unsupported-option');
-                    
-                    if (compatibleIds.length > 0) {
-                        // Disable incompatible options
-                        $('.add-feature').each(function() {
-                            const featureId = parseInt($(this).val());
-                            if (!compatibleIds.includes(featureId)) {
-                                $(this).prop('disabled', true).prop('checked', false).closest('.form-check').addClass('unsupported-option');
-                            }
-                        });
-                        $('#featureCompatibilityNoteAdd').removeClass('d-none');
-                    } else {
-                        $('#featureCompatibilityNoteAdd').addClass('d-none');
-                    }
-                }
-
-                // Create badge display to show selected categories
-                function updateCategoryBadges(selector, selectedCategories) {
-                    const container = $(selector);
-                    container.empty();
-                    
-                    if (selectedCategories.length > 0) {
-                        container.append('<span class="mb-1 d-block">Selected categories:</span>');
-                        selectedCategories.forEach(function(category) {
-                            const name = $(`#category${category}`).data('category-name');
-                            if (name) {
-                                container.append(`<span class="badge bg-primary me-1 mb-1">${name}</span>`);
-                            }
-                        });
-                    }
-                }
-
-                // Listen for category changes and update compatible options
-                $(document).on('change', '.add-category', function() {
-                    const selectedCategories = [];
-                    $('.add-category:checked').each(function() {
-                        selectedCategories.push(parseInt($(this).val()));
-                    });
-                    
-                    // Update badge display
-                    updateCategoryBadges('#selectedCategoriesBadgesAddForm', selectedCategories);
-                    
-                    // Add visual highlighting to sections that will be filtered
-                    if (selectedCategories.length > 0) {
-                        $('#countriesContainer, .add-purpose, .add-feature').closest('.border').addClass('compatibility-active');
-                        getCompatibleOptions(selectedCategories);
                         
-                        // Show compatibility notes
-                        $('#countryCompatibilityNoteAdd, #purposeCompatibilityNoteAdd, #featureCompatibilityNoteAdd').removeClass('d-none');
-                    } else {
-                        // Reset everything when no categories selected
-                        $('#countriesContainer, .add-purpose, .add-feature').closest('.border').removeClass('compatibility-active');
-                        $('.add-country, .add-purpose, .add-feature').prop('disabled', false).closest('.form-check').removeClass('unsupported-option');
-                        $('#countryCompatibilityNoteAdd, #purposeCompatibilityNoteAdd, #featureCompatibilityNoteAdd').addClass('d-none');
-                        $('#compatibilityInfoNote').remove();
-                    }
-                });
-
-                // Clear compatibility filters when modal closes
-                $('#AddSiteModal').on('hidden.bs.modal', function() {
-                    $('.add-country, .add-purpose, .add-feature').prop('disabled', false).closest('.form-check').removeClass('unsupported-option');
-                    $('#countryCompatibilityNoteAdd, #purposeCompatibilityNoteAdd, #featureCompatibilityNoteAdd').addClass('d-none');
-                    $('#selectedCategoriesBadgesAddForm').empty();
-                });
-
-                // Edit version - Listen for category changes in edit form
-                $(document).on('change', '.edit-category', function() {
-                    const selectedCategories = [];
-                    $('.edit-category:checked').each(function() {
-                        selectedCategories.push(parseInt($(this).val()));
-                    });
-                    
-                    // Update badge display
-                    updateCategoryBadges('#selectedCategoriesBadgesEditForm', selectedCategories);
-                    
-                    // Get compatible options for edit form
-                    getCompatibleOptions(selectedCategories);
-                });
-
-                // Add functions for edit form compatibility filtering
-                function updateCompatibleEditCountries(compatibleIds) {
-                    // Reset all countries first
-                    $('.edit-country').prop('disabled', false).closest('.form-check').removeClass('unsupported-option');
-                    
-                    if (compatibleIds && compatibleIds.length > 0) {
-                        // Disable incompatible options
-                        $('.edit-country').each(function() {
-                            const countryId = parseInt($(this).val());
-                            if (!compatibleIds.includes(countryId)) {
-                                $(this).prop('disabled', true).prop('checked', false).closest('.form-check').addClass('unsupported-option');
-                            }
-                        });
-                        $('#countryCompatibilityNoteEdit').removeClass('d-none');
-                    } else {
-                        $('#countryCompatibilityNoteEdit').addClass('d-none');
-                    }
-                }
-
-                function updateCompatibleEditPurposes(compatibleIds) {
-                    // Reset all purposes first
-                    $('.edit-purpose').prop('disabled', false).closest('.form-check').removeClass('unsupported-option');
-                    
-                    if (compatibleIds && compatibleIds.length > 0) {
-                        // Disable incompatible options
-                        $('.edit-purpose').each(function() {
+                        // Mark compatible/incompatible purposes - IMPORTANT fix to target the form-check parent
+                        $('.filter-purpose').each(function() {
                             const purposeId = parseInt($(this).val());
-                            if (!compatibleIds.includes(purposeId)) {
-                                $(this).prop('disabled', true).prop('checked', false).closest('.form-check').addClass('unsupported-option');
+                            if (!compatiblePurposes.includes(purposeId)) {
+                                // Uncheck and mark as incompatible
+                                $(this).prop('checked', false);
+                                // Apply unsupported-option class to the form-check parent
+                                $(this).closest('.form-check').addClass('unsupported-option');
                             }
                         });
-                        $('#purposeCompatibilityNoteEdit').removeClass('d-none');
-                    } else {
-                        $('#purposeCompatibilityNoteEdit').addClass('d-none');
-                    }
-                }
-
-                function updateCompatibleEditFeatures(compatibleIds) {
-                    // Reset all features first
-                    $('.edit-feature').prop('disabled', false).closest('.form-check').removeClass('unsupported-option');
-                    
-                    if (compatibleIds && compatibleIds.length > 0) {
-                        // Disable incompatible options
-                        $('.edit-feature').each(function() {
-                            const featureId = parseInt($(this).val());
-                            if (!compatibleIds.includes(featureId)) {
-                                $(this).prop('disabled', true).prop('checked', false).closest('.form-check').addClass('unsupported-option');
-                            }
-                        });
-                        $('#featureCompatibilityNoteEdit').removeClass('d-none');
-                    } else {
-                        $('#featureCompatibilityNoteEdit').addClass('d-none');
-                    }
-                }
-
-                function getCompatibleEditOptions(categoryIds) {
-                    // Show loading indicators for each section
-                    $('#edit_countriesContainer, #selectedCategoriesBadgesEditForm').append('<div class="loading-spinner text-center my-2"><div class="spinner-border spinner-border-sm text-primary"></div> <small class="text-muted">Loading compatible options...</small></div>');
-                    
-                    $.ajax({
-                        url: '/sites/compatible-options',
-                        type: 'GET',
-                        data: { 
-                            categories: categoryIds,
-                            option_type: 'all'
-                        },
-                        success: function(response) {
-                            // Remove loading indicators
-                            $('.loading-spinner').remove();
-                            
-                            if (response.success) {
-                                // Update UI with compatible options
-                                updateCompatibleEditCountries(response.countries || []);
-                                updateCompatibleEditPurposes(response.purposes || []);
-                                updateCompatibleEditFeatures(response.features || []);
-                                
-                                // Add visual indicator showing which category is filtering 
-                                const categoryNames = [];
-                                categoryIds.forEach(function(id) {
-                                    const name = $(`#edit_category${id}`).data('category-name');
-                                    if (name) categoryNames.push(name);
-                                });
-                                
-                                if (categoryNames.length > 0) {
-                                    const noteText = `Showing options compatible with: <strong>${categoryNames.join(', ')}</strong>`;
-                                    $('#compatibilityInfoNoteEdit').remove();
-                                    $('#selectedCategoriesBadgesEditForm').append(`<div id="compatibilityInfoNoteEdit" class="alert alert-info py-1 px-2 mt-2 mb-0"><i class="fas fa-info-circle me-1"></i> ${noteText}</div>`);
-                                }
-                            } else {
-                                console.error('Failed to get compatible options:', response.message);
-                            }
-                        },
-                        error: function(xhr) {
-                            // Remove loading indicators
-                            $('.loading-spinner').remove();
-                            
-                            console.error('Error fetching compatible options:', xhr.responseText);
-                            
-                            // Reset UI when error occurs
-                            $('.edit-country, .edit-purpose, .edit-feature').prop('disabled', false)
-                                .closest('.form-check').removeClass('unsupported-option');
-                        }
-                    });
-                }
-
-                // Edit version - Listen for category changes in edit form
-                $(document).on('change', '.edit-category', function() {
-                    const selectedCategories = [];
-                    $('.edit-category:checked').each(function() {
-                        selectedCategories.push(parseInt($(this).val()));
-                    });
-                    
-                    // Update badge display
-                    updateCategoryBadges('#selectedCategoriesBadgesEditForm', selectedCategories);
-                    
-                    // Add visual highlighting to sections that will be filtered
-                    if (selectedCategories.length > 0) {
-                        $('#edit_countriesContainer, .edit-purpose, .edit-feature').closest('.border').addClass('compatibility-active');
-                        getCompatibleEditOptions(selectedCategories);
                         
-                        // Show compatibility notes
-                        $('#countryCompatibilityNoteEdit, #purposeCompatibilityNoteEdit, #featureCompatibilityNoteEdit').removeClass('d-none');
-                    } else {
-                        // Reset everything when no categories selected
-                        $('#edit_countriesContainer, .edit-purpose, .edit-feature').closest('.border').removeClass('compatibility-active');
-                        $('.edit-country, .edit-purpose, .edit-feature').prop('disabled', false).closest('.form-check').removeClass('unsupported-option');
-                        $('#countryCompatibilityNoteEdit, #purposeCompatibilityNoteEdit, #featureCompatibilityNoteEdit').addClass('d-none');
-                        $('#compatibilityInfoNoteEdit').remove();
+                        // Add note about filtered purposes
+                        const compatibilityNote = $(`
+                            <div class="compatibility-note mt-2">
+                                <i class="fas fa-filter me-1"></i>
+                                ${compatiblePurposes.length} compatible purposes shown
+                                <div class="form-check form-switch mt-1">
+                                    <input class="form-check-input" type="checkbox" id="hideIncompatiblePurposes">
+                                    <label class="form-check-label" for="hideIncompatiblePurposes">
+                                        <small>Hide incompatible purposes</small>
+                                    </label>
+                                </div>
+                            </div>
+                        `);
+                        
+                        $('#selectedCategoriesBadges2').append(compatibilityNote);
+                        
+                        // Handle hide incompatible option - make sure to use document to handle dynamically added elements
+                        $(document).on('change', '#hideIncompatiblePurposes', function() {
+                            if ($(this).is(':checked')) {
+                                $('#step3').find('.border').addClass('hide-incompatible');
+                            } else {
+                                $('#step3').find('.border').removeClass('hide-incompatible');
+                            }
+                        });
+                    },
+                    error: function(xhr) {
+                        // Remove loading indicator
+                        $('.loading-indicator').remove();
+                        
+                        // Show error
+                        const errorMsg = $('<div class="alert alert-danger py-1 px-2 mt-1" style="font-size: 0.8rem;"><i class="fas fa-exclamation-triangle"></i> Error loading compatibility data</div>');
+                        $('#selectedCategoriesBadges2').append(errorMsg);
+                        
+                        // Log error
+                        console.error('Error fetching compatible purposes:', xhr.responseText);
+                        
+                        // Remove after 3 seconds
+                        setTimeout(() => {
+                            errorMsg.fadeOut(300, function() { $(this).remove(); });
+                        }, 3000);
                     }
                 });
-            });
-        </script>
-        <!-- Add to the end of the scripts section -->
-        <script>
-            // Function to validate domain format
-            function validateDomain(domain) {
-                // Basic domain regex pattern - allows subdomains and various TLDs
-                const domainPattern = /^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/;
-                return domainPattern.test(domain);
             }
-            
-            // Add domain validation to URL field
-            $('#url').on('blur', function() {
-                const domain = $(this).val().trim();
-                const $error = $('#url_error');
-                const $input = $(this);
+
+            // Function to filter countries based on selected categories
+            function filterCountriesByCategories() {
+                const selectedCategories = [];
+                $('.filter-category:checked').each(function() {
+                    selectedCategories.push(parseInt($(this).val()));
+                });
                 
-                // First validate the format
-                if (domain && !validateDomain(domain)) {
-                    $input.addClass('is-invalid');
-                    $error.text('Please enter a valid domain name (e.g., example.com)');
+                if (selectedCategories.length === 0) {
+                    // Reset if no categories selected
+                    $('.filter-country').closest('.form-check').removeClass('unsupported-option');
                     return;
                 }
                 
-                // If format is valid and domain is not empty, check if it exists
-                if (domain) {
-                    // Show loading indicator
-                    $input.addClass('is-loading');
-                    
-                    $.ajax({
-                        url: '{{ route("sites.check-domain") }}',
-                        type: 'GET',
-                        data: { domain: domain },
-                        success: function(response) {
-                            $input.removeClass('is-loading');
+                // Add loading indicator
+                const loadingHtml = '<div class="loading-indicator py-2 text-center"><div class="spinner-border spinner-border-sm text-primary me-2"></div><span>Loading compatible countries...</span></div>';
+                $('#selectedCategoriesBadges').append(loadingHtml);
+                
+                // Fetch compatible countries from server
+                $.ajax({
+                    type: "GET",
+                    url: routeUrls.compatibleOptions,
+                    data: {
+                        categories: selectedCategories,
+                        option_types: ['countries']
+                    },
+                    dataType: "json",
+                    success: function(response) {
+                        // Remove loading indicator
+                        $('.loading-indicator').remove();
+                        
+                        if (!response.success) {
+                            // Show error
+                            const errorMsg = $('<div class="alert alert-danger py-1 px-2 mt-1" style="font-size: 0.8rem;"><i class="fas fa-exclamation-triangle"></i> Error loading compatible countries</div>');
+                            $('#selectedCategoriesBadges').append(errorMsg);
                             
-                            if (response.exists) {
-                                $input.addClass('is-invalid');
-                                $error.text('This domain is already registered in the system.');
-                            } else {
-                                $input.removeClass('is-invalid').addClass('is-valid');
-                                $error.text('');
-                            }
-                        },
-                        error: function() {
-                            $input.removeClass('is-loading');
-                            // Don't show error on AJAX failure
-                            $input.removeClass('is-invalid');
-                            $error.text('');
+                            // Remove after 3 seconds
+                            setTimeout(() => {
+                                errorMsg.fadeOut(300, function() { $(this).remove(); });
+                            }, 3000);
+                            return;
                         }
-                    });
-                } else {
-                    $input.removeClass('is-invalid');
-                    $error.text('');
-                }
-            });
-            
-            // Add domain validation to edit URL field
-            $('#edit_url').on('blur', function() {
-                const domain = $(this).val().trim();
-                const $error = $('#edit_url_error');
-                const $input = $(this);
-                const siteId = $('#edit_id').val();
-                
-                // First validate the format
-                if (domain && !validateDomain(domain)) {
-                    $input.addClass('is-invalid');
-                    $error.text('Please enter a valid domain name (e.g., example.com)');
-                    return;
-                }
-                
-                // If format is valid and domain is not empty, check if it exists (excluding current site)
-                if (domain) {
-                    // Show loading indicator
-                    $input.addClass('is-loading');
-                    
-                    $.ajax({
-                        url: '{{ route("sites.check-domain") }}',
-                        type: 'GET',
-                        data: { 
-                            domain: domain,
-                            exclude_id: siteId
-                        },
-                        success: function(response) {
-                            $input.removeClass('is-loading');
-                            
-                            if (response.exists) {
-                                $input.addClass('is-invalid');
-                                $error.text('This domain is already registered in the system.');
-                            } else {
-                                $input.removeClass('is-invalid').addClass('is-valid');
-                                $error.text('');
+                        
+                        const compatibleCountries = response.countries || [];
+                        
+                        // First reset all options
+                        $('.filter-country').closest('.form-check').removeClass('unsupported-option');
+                        
+                        // Mark compatible/incompatible countries
+                        $('.filter-country').each(function() {
+                            const countryId = parseInt($(this).val());
+                            if (!compatibleCountries.includes(countryId)) {
+                                // Uncheck incompatible options
+                                $(this).prop('checked', false);
+                                // Apply unsupported-option class to the form-check parent
+                                $(this).closest('.form-check').addClass('unsupported-option');
                             }
-                        },
-                        error: function() {
-                            $input.removeClass('is-loading');
-                            // Don't show error on AJAX failure
-                            $input.removeClass('is-invalid');
-                            $error.text('');
-                        }
-                    });
-                } else {
-                    $input.removeClass('is-invalid');
-                    $error.text('');
-                }
-            });
-            
-            // Validate URL before form submission
-            $('.saveSiteBtn').on('click', function(e) {
-                const domain = $('#url').val().trim();
-                const $error = $('#url_error');
-                
-                if (!domain) {
-                    $('#url').addClass('is-invalid');
-                    $error.text('Domain name is required');
-                    e.preventDefault();
-                    return false;
-                }
-                
-                if (!validateDomain(domain)) {
-                    $('#url').addClass('is-invalid');
-                    $error.text('Please enter a valid domain name (e.g., example.com)');
-                    e.preventDefault();
-                    return false;
-                }
-                
-                // Check for the invalid class which would be set by the AJAX validation
-                if ($('#url').hasClass('is-invalid')) {
-                    e.preventDefault();
-                    return false;
-                }
-            });
-            
-            // Validate edit URL before form submission
-            $('.edit_btn').on('click', function(e) {
-                const domain = $('#edit_url').val().trim();
-                const $error = $('#edit_url_error');
-                
-                if (!domain) {
-                    $('#edit_url').addClass('is-invalid');
-                    $error.text('Domain name is required');
-                    e.preventDefault();
-                    return false;
-                }
-                
-                if (!validateDomain(domain)) {
-                    $('#edit_url').addClass('is-invalid');
-                    $error.text('Please enter a valid domain name (e.g., example.com)');
-                    e.preventDefault();
-                    return false;
-                }
-                
-                // Check for the invalid class which would be set by the AJAX validation
-                if ($('#edit_url').hasClass('is-invalid')) {
-                    e.preventDefault();
-                    return false;
-                }
-            });
-            
-            // Clear validation state when modal is opened
-            $('#AddSiteModal').on('shown.bs.modal', function() {
-                $('#url').removeClass('is-invalid is-valid');
-                $('#url_error').text('');
-            });
-            
-            $('#EditModal').on('shown.bs.modal', function() {
-                $('#edit_url').removeClass('is-invalid is-valid');
-                $('#edit_url_error').text('');
-            });
+                        });
+                        
+                        // Add note about filtered countries
+                        const compatibilityNote = $(`
+                            <div class="compatibility-note mt-2">
+                                <i class="fas fa-filter me-1"></i>
+                                ${compatibleCountries.length} compatible countries shown
+                                <div class="form-check form-switch mt-1">
+                                    <input class="form-check-input" type="checkbox" id="hideIncompatibleCountries">
+                                    <label class="form-check-label" for="hideIncompatibleCountries">
+                                        <small>Hide incompatible countries</small>
+                                    </label>
+                                </div>
+                            </div>
+                        `);
+                        
+                        $('#selectedCategoriesBadges').append(compatibilityNote);
+                        
+                        // Handle hide incompatible option
+                        $(document).on('change', '#hideIncompatibleCountries', function() {
+                            if ($(this).is(':checked')) {
+                                $('#filter_countriesContainer').addClass('hide-incompatible');
+                            } else {
+                                $('#filter_countriesContainer').removeClass('hide-incompatible');
+                            }
+                        });
+                    },
+                    error: function(xhr) {
+                        // Remove loading indicator
+                        $('.loading-indicator').remove();
+                        
+                        // Show error
+                        const errorMsg = $('<div class="alert alert-danger py-1 px-2 mt-1" style="font-size: 0.8rem;"><i class="fas fa-exclamation-triangle"></i> Error loading compatibility data</div>');
+                        $('#selectedCategoriesBadges').append(errorMsg);
+                        
+                        // Log error
+                        console.error('Error fetching compatible countries:', xhr.responseText);
+                        
+                        // Remove after 3 seconds
+                        setTimeout(() => {
+                            errorMsg.fadeOut(300, function() { $(this).remove(); });
+                        }, 3000);
+                    }
+                });
+            }
         </script>
     @endpush
 

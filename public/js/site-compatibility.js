@@ -6,18 +6,24 @@
  */
 
 $(document).ready(function() {
+    // Logging to verify initialization
+    console.log('Site compatibility JS loaded');
+    
     // Listen for category changes in the add form
     $(document).on('change', '.add-category', function() {
+        console.log('Add form category changed');
         updateCompatibilityFiltering('add');
     });
     
     // Listen for category changes in the edit form
     $(document).on('change', '.edit-category', function() {
+        console.log('Edit form category changed');
         updateCompatibilityFiltering('edit');
     });
     
     // Function to update compatibility filtering based on form type
     function updateCompatibilityFiltering(formType) {
+        console.log('Updating compatibility filtering for', formType, 'form');
         const prefix = formType === 'edit' ? 'edit_' : '';
         const categoryClass = formType === 'edit' ? '.edit-category' : '.add-category';
         const countryClass = formType === 'edit' ? '.edit-country' : '.add-country';
@@ -30,30 +36,37 @@ $(document).ready(function() {
             selectedCategories.push(parseInt($(this).val()));
         });
         
+        console.log('Selected categories:', selectedCategories);
+        
         // Clear previous error messages
         $('#compatibilityError').remove();
         
+        // Define badge container ID correctly
+        const badgeContainer = formType === 'edit' ? 'selectedCategoriesBadgesEditForm' : 'selectedCategoriesBadgesAddForm';
+        
         // Update badge display
-        updateCategoryBadges('#' + prefix + 'selectedCategoriesBadgesForm', selectedCategories);
+        updateCategoryBadges('#' + badgeContainer, selectedCategories);
         
         // Show visual loading indicator while fetching compatibility data
         const loadingIndicator = $('<div class="loading-indicator py-2"><div class="spinner-border spinner-border-sm text-primary me-2"></div><span>Loading compatible options...</span></div>');
-        $('#' + prefix + 'selectedCategoriesBadgesForm').append(loadingIndicator);
+        $('#' + badgeContainer).append(loadingIndicator);
         
         if (selectedCategories.length > 0) {
             // Highlight sections that will be filtered
             $('#' + prefix + 'countriesContainer').closest('.border').addClass('compatibility-active');
             $(purposeClass + ', ' + featureClass).closest('.border').addClass('compatibility-active');
             
-            // Get compatible options via AJAX
+            // Get compatible options via AJAX - use the route path from the page
             $.ajax({
-                url: '/sites/compatible-options',
+                url: routeUrls.compatibleOptions || '/sites/compatible-options', // Use global variable if available
                 type: 'GET',
                 data: {
                     categories: selectedCategories,
-                    option_type: 'all'
+                    option_types: ['countries', 'purposes', 'features'] // Use the expected array format
                 },
                 success: function(response) {
+                    console.log('Compatibility API response:', response);
+                    
                     if (response.success) {
                         // Update compatibility visuals
                         updateCompatibilityVisuals(response.countries || [], countryClass, '#' + prefix + 'countryCompatibilityNote');
@@ -66,19 +79,33 @@ $(document).ready(function() {
                         }).get().join(', ');
                         
                         $('#' + prefix + 'compatibilityInfoNote').remove();
-                        $('#' + prefix + 'selectedCategoriesBadgesForm').append(
+                        $('#' + badgeContainer).append(
                             `<div id="${prefix}compatibilityInfoNote" class="alert alert-info py-1 px-2 mt-2">
                                 <i class="fas fa-filter me-1"></i>
                                 <strong>Filtering options:</strong> Showing items compatible with "${categoryNames}"
                             </div>`
                         );
+                        
+                        // Apply hide-incompatible class if the option is checked
+                        if (formType === 'edit') {
+                            if ($('#hideIncompatibleOptionsEdit').is(':checked')) {
+                                console.log('Auto-applying hide-incompatible in edit form');
+                                $('#editSiteForm .compatibility-container').addClass('hide-incompatible');
+                            }
+                        } else {
+                            if ($('#hideIncompatibleOptions').is(':checked')) {
+                                console.log('Auto-applying hide-incompatible in add form');
+                                $('#addSiteForm .compatibility-container').addClass('hide-incompatible');
+                            }
+                        }
                     } else {
-                        showCompatibilityError(prefix + 'selectedCategoriesBadgesForm', response.message);
+                        showCompatibilityError(badgeContainer, response.message || 'Unknown error occurred');
                     }
                     loadingIndicator.remove();
                 },
                 error: function(xhr) {
-                    showCompatibilityError(prefix + 'selectedCategoriesBadgesForm', 'Failed to load compatibility data');
+                    console.error('Compatibility filtering error:', xhr.responseText);
+                    showCompatibilityError(badgeContainer, 'Failed to load compatibility data');
                     loadingIndicator.remove();
                     
                     // Reset on error
@@ -97,13 +124,18 @@ $(document).ready(function() {
         // Reset all items first
         $(elementClass).prop('disabled', false).closest('.form-check').removeClass('unsupported-option');
         
-        if (compatibleIds.length > 0) {
+        if (compatibleIds && compatibleIds.length > 0) {
+            console.log('Processing compatibility for', elementClass, '- Compatible IDs:', compatibleIds);
+            
             // Mark incompatible options
             $(elementClass).each(function() {
                 const itemId = parseInt($(this).val());
                 if (!compatibleIds.includes(itemId)) {
-                    $(this).prop('disabled', true).prop('checked', false)
-                        .closest('.form-check').addClass('unsupported-option');
+                    $(this).prop('checked', false);
+                    // Apply class to the form-check parent
+                    const $formCheck = $(this).closest('.form-check');
+                    $formCheck.addClass('unsupported-option');
+                    console.log('Marked as unsupported:', itemId, $formCheck);
                 }
             });
             $(noteSelector).removeClass('d-none');
@@ -117,8 +149,8 @@ $(document).ready(function() {
         $(countryClass + ', ' + purposeClass + ', ' + featureClass)
             .prop('disabled', false).closest('.form-check').removeClass('unsupported-option');
         
-        $('#' + prefix + 'countriesContainer, ' + purposeClass + ', ' + featureClass)
-            .closest('.border').removeClass('compatibility-active');
+        $('#' + prefix + 'countriesContainer').closest('.border').removeClass('compatibility-active');
+        $(purposeClass + ', ' + featureClass).closest('.border').removeClass('compatibility-active');
             
         $('#' + prefix + 'countryCompatibilityNote, #' + prefix + 'purposeCompatibilityNote, #' + prefix + 'featureCompatibilityNote')
             .addClass('d-none');
@@ -145,7 +177,7 @@ $(document).ready(function() {
         const $container = $(container);
         $container.empty();
         
-        if (selectedCategories.length > 0) {
+        if (selectedCategories && selectedCategories.length > 0) {
             $container.append('<div class="mb-1">Selected categories:</div>');
             selectedCategories.forEach(function(categoryId) {
                 const $category = $('#category' + categoryId + ', #edit_category' + categoryId);
@@ -157,14 +189,49 @@ $(document).ready(function() {
         }
     }
     
+    // Make this function globally available for use in other scripts
+    window.updateCompatibilityFiltering = updateCompatibilityFiltering;
+    
     // Reset everything when modals are closed
     $('#AddSiteModal').on('hidden.bs.modal', function() {
         resetCompatibility('.add-country', '.add-purpose', '.add-feature', '');
-        $('#selectedCategoriesBadgesForm').empty();
+        $('#selectedCategoriesBadgesAddForm').empty();
     });
     
     $('#EditModal').on('hidden.bs.modal', function() {
         resetCompatibility('.edit-country', '.edit-purpose', '.edit-feature', 'edit_');
-        $('#edit_selectedCategoriesBadgesForm').empty();
+        $('#selectedCategoriesBadgesEditForm').empty();
+    });
+    
+    // Direct handler for hide incompatible options toggle in add form
+    $(document).on('click', '#hideIncompatibleOptions', function() {
+        const isChecked = $(this).is(':checked');
+        console.log('Hide incompatible options toggled in add form:', isChecked);
+        
+        $('#addSiteForm .compatibility-container').each(function() {
+            if (isChecked) {
+                $(this).addClass('hide-incompatible');
+                console.log('Added hide-incompatible to container:', $(this).attr('class'));
+            } else {
+                $(this).removeClass('hide-incompatible');
+                console.log('Removed hide-incompatible from container:', $(this).attr('class'));
+            }
+        });
+    });
+    
+    // Direct handler for hide incompatible options toggle in edit form
+    $(document).on('click', '#hideIncompatibleOptionsEdit', function() {
+        const isChecked = $(this).is(':checked');
+        console.log('Hide incompatible options toggled in edit form:', isChecked);
+        
+        $('#editSiteForm .compatibility-container').each(function() {
+            if (isChecked) {
+                $(this).addClass('hide-incompatible');
+                console.log('Added hide-incompatible to container:', $(this).attr('class'));
+            } else {
+                $(this).removeClass('hide-incompatible');
+                console.log('Removed hide-incompatible from container:', $(this).attr('class'));
+            }
+        });
     });
 }); 

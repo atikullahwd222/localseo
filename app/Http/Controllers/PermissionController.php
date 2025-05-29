@@ -182,43 +182,67 @@ class PermissionController extends Controller
      */
     public function assignToRole(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'role_id' => 'required|exists:roles,id',
-            'permission_id' => 'required|exists:permissions,id',
-            'has_permission' => 'required|boolean'
-        ]);
-        
-        if ($validator->fails()) {
+        try {
+            $validator = Validator::make($request->all(), [
+                'role_id' => 'required|exists:roles,id',
+                'permission_id' => 'required|exists:permissions,id',
+                'has_permission' => 'required'
+            ]);
+            
+            if ($validator->fails()) {
+                \Log::error('Validation failed in assignToRole: ' . json_encode($validator->errors()->toArray()));
+                \Log::error('Request data: ' . json_encode($request->all()));
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+            
+            $role = Role::findOrFail($request->role_id);
+            $permission = Permission::findOrFail($request->permission_id);
+            
+            // Don't allow modifying default admin role
+            if ($role->name === 'admin') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot modify permissions for the admin role.'
+                ], 403);
+            }
+            
+            // Convert has_permission to boolean
+            $hasPermission = filter_var($request->has_permission, FILTER_VALIDATE_BOOLEAN);
+            
+            try {
+                if ($hasPermission) {
+                    $role->givePermissionTo($permission);
+                    $message = 'Permission granted successfully.';
+                } else {
+                    $role->removePermission($permission);
+                    $message = 'Permission revoked successfully.';
+                }
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => $message
+                ]);
+            } catch (\Exception $e) {
+                \Log::error('Error updating permission: ' . $e->getMessage());
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error updating permission: ' . $e->getMessage()
+                ], 500);
+            }
+        } catch (\Exception $e) {
+            \Log::error('Unexpected error in assignToRole: ' . $e->getMessage());
+            
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()
-            ], 422);
+                'message' => 'An unexpected error occurred.'
+            ], 500);
         }
-        
-        $role = Role::findOrFail($request->role_id);
-        $permission = Permission::findOrFail($request->permission_id);
-        
-        // Don't allow modifying default admin role
-        if ($role->name === 'admin') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Cannot modify permissions for the admin role.'
-            ], 403);
-        }
-        
-        if ($request->has_permission) {
-            $role->givePermissionTo($permission);
-            $message = 'Permission granted successfully.';
-        } else {
-            $role->removePermission($permission);
-            $message = 'Permission revoked successfully.';
-        }
-        
-        return response()->json([
-            'success' => true,
-            'message' => $message
-        ]);
     }
     
     /**

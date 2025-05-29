@@ -11,8 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('default_roles', function (Blueprint $table) {
-            //
+        Schema::table('sites', function (Blueprint $table) {
+            $table->string('video_link')->nullable()->after('description');
         });
     }
 
@@ -21,8 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('default_roles', function (Blueprint $table) {
-            //
+        Schema::table('sites', function (Blueprint $table) {
+            $table->dropColumn('video_link');
         });
     }
 };

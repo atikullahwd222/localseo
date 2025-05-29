@@ -18,7 +18,108 @@ class SitesController extends Controller
         $purposes = WorkPurpose::all();
         $features = SiteFeature::all();
         
-        return view('sites.index', compact('categories', 'countries', 'purposes', 'features'));
+        // Get 20 sites for default display with pagination
+        $sites = Sites::with(['categories', 'countries', 'workPurposes', 'features'])
+                    ->orderBy('created_at', 'desc')
+                    ->paginate(20);
+        
+        // Transform each site to include simplified relationship data
+        $sites->getCollection()->transform(function ($site) {
+            $siteData = $site->toArray();
+            $siteData['categories_list'] = $site->categories->pluck('name')->join(', ');
+            $siteData['is_global'] = $site->isGlobal();
+            $siteData['countries_list'] = $site->countryList();
+            $siteData['purposes_list'] = $site->workPurposes->pluck('name')->join(', ');
+            return $siteData;
+        });
+        
+        return view('sites.index', compact('categories', 'countries', 'purposes', 'features', 'sites'));
+    }
+
+    /**
+     * Check if a domain is reachable
+     * 
+     * @param string $domain
+     * @return bool
+     */
+    private function isDomainReachable($domain)
+    {
+        try {
+            // Clean up the domain (remove any protocol, path, or query string)
+            $cleanDomain = preg_replace('#^https?://#', '', $domain);
+            $cleanDomain = strtok($cleanDomain, '/'); // Remove any path
+            
+            // Try HTTPS first
+            $isReachable = $this->checkUrl("https://" . $cleanDomain);
+            
+            // If not reachable via HTTPS, try HTTP
+            if (!$isReachable) {
+                $isReachable = $this->checkUrl("http://" . $cleanDomain);
+            }
+            
+            // If still not reachable, try DNS lookup as a fallback
+            if (!$isReachable) {
+                $isReachable = $this->checkDnsRecord($cleanDomain);
+            }
+            
+            return $isReachable;
+        } catch (\Exception $e) {
+            \Log::error("Error checking domain reachability for {$domain}: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Helper method to check a specific URL
+     * 
+     * @param string $url
+     * @return bool
+     */
+    private function checkUrl($url)
+    {
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
+        curl_setopt($ch, CURLOPT_NOBODY, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+        
+        curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+        
+        if (!empty($error)) {
+            \Log::warning("cURL error for {$url}: {$error}");
+        }
+        
+        // Consider 2xx, 3xx, and some 4xx codes as reachable (site exists but may be returning errors)
+        return $httpCode >= 200 && $httpCode < 500;
+    }
+
+    /**
+     * Check if domain has valid DNS records
+     * 
+     * @param string $domain
+     * @return bool
+     */
+    private function checkDnsRecord($domain)
+    {
+        // Check for A record (IPv4)
+        $hasARecord = checkdnsrr($domain, 'A');
+        
+        // Check for AAAA record (IPv6)
+        $hasAAAARecord = checkdnsrr($domain, 'AAAA');
+        
+        // Check for MX record (Mail)
+        $hasMXRecord = checkdnsrr($domain, 'MX');
+        
+        // Return true if any of the records exist
+        return $hasARecord || $hasAAAARecord || $hasMXRecord;
     }
 
     public function storeSite(Request $request)
@@ -28,7 +129,7 @@ class SitesController extends Controller
                 'required',
                 'string',
                 'max:191',
-                'regex:/^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/', // Only allow domain names
+                'regex:/^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)+([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$/', // Allow domains with subdomains
                 function ($attribute, $value, $fail) {
                     // Check if domain already exists
                     $exists = Sites::where('url', $value)->exists();
@@ -39,7 +140,8 @@ class SitesController extends Controller
             ],
             'da'          => 'nullable|integer|min:0|max:100',
             'description' => 'nullable|string',
-            'status'      => 'required|in:active,inactive',
+            'video_link'  => 'nullable|string|url',
+            'status'      => 'required|in:Live,Pending',
             'type'        => 'required|in:general,blog,shop,portfolio',
             'theme'       => 'required|string|max:191',
             'categories'  => 'nullable|array',
@@ -59,15 +161,30 @@ class SitesController extends Controller
                 'errors' => $validator->messages(),
             ]);
         }
+        
+        // Check if the domain is reachable
+        $domain = $request->input('url');
+        $isReachable = $this->isDomainReachable($domain);
+        $serverStatus = $isReachable ? 'Online' : 'Offline';
+        
+        // If site is not reachable and status was set to Live, change it to Pending
+        $status = $request->input('status');
+        if (!$isReachable && $status === 'Live') {
+            $status = 'Pending';
+        }
 
         // Create site using mass assignment
         $site = Sites::create([
-            'url'         => $request->input('url'),
-            'da'          => $request->input('da'),
-            'description' => $request->input('description'),
-            'status'      => $request->input('status'),
-            'type'        => $request->input('type'),
-            'theme'       => $request->input('theme'),
+            'name'         => $request->input('url'), // Use the URL as the name
+            'url'          => $domain,
+            'complete_url' => $request->input('complete_url'),
+            'da'           => $request->input('da'),
+            'description'  => $request->input('description'),
+            'video_link'   => $request->input('video_link'),
+            'status'       => $status,
+            'server_status' => $serverStatus,
+            'type'         => $request->input('type'),
+            'theme'        => $request->input('theme'),
         ]);
 
         // Assign categories if they exist
@@ -284,7 +401,7 @@ class SitesController extends Controller
                 'required',
                 'string',
                 'max:191',
-                'regex:/^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/', // Only allow domain names
+                'regex:/^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)+([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$/', // Allow domains with subdomains
                 function ($attribute, $value, $fail) use ($id) {
                     // Check if domain already exists (excluding current site)
                     $exists = Sites::where('url', $value)
@@ -297,7 +414,8 @@ class SitesController extends Controller
             ],
             'da'          => 'nullable|integer|min:0|max:100',
             'description' => 'nullable|string',
-            'status'      => 'required|in:active,inactive',
+            'video_link'  => 'nullable|string|url',
+            'status'      => 'required|in:Live,Pending',
             'type'        => 'required|in:general,blog,shop,portfolio',
             'theme'       => 'required|string|max:191',
             'categories'  => 'nullable|array',
@@ -319,15 +437,30 @@ class SitesController extends Controller
         }
 
         $site = Sites::findOrFail($id);
+        
+        // Check if the domain is reachable
+        $domain = $request->input('url');
+        $isReachable = $this->isDomainReachable($domain);
+        $serverStatus = $isReachable ? 'Online' : 'Offline';
+        
+        // If site is not reachable and status was set to Live, change it to Pending
+        $status = $request->input('status');
+        if (!$isReachable && $status === 'Live') {
+            $status = 'Pending';
+        }
 
         // Update site using mass assignment
         $site->update([
-            'url'         => $request->input('url'),
-            'da'          => $request->input('da'),
-            'description' => $request->input('description'),
-            'status'      => $request->input('status'),
-            'type'        => $request->input('type'),
-            'theme'       => $request->input('theme'),
+            'name'         => $domain, // Use the URL as the name
+            'url'          => $domain,
+            'complete_url' => $request->input('complete_url'),
+            'da'           => $request->input('da'),
+            'description'  => $request->input('description'),
+            'video_link'   => $request->input('video_link'),
+            'status'       => $status,
+            'server_status' => $serverStatus,
+            'type'         => $request->input('type'),
+            'theme'        => $request->input('theme'),
         ]);
         
         // Update categories
@@ -569,5 +702,57 @@ class SitesController extends Controller
         return response()->json([
             'exists' => $exists
         ]);
+    }
+
+    /**
+     * Check domain reachability from AJAX request
+     */
+    public function checkDomainReachability(Request $request)
+    {
+        $domain = $request->input('domain');
+        
+        if (empty($domain)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Domain is required',
+                'is_reachable' => false
+            ]);
+        }
+        
+        try {
+            $isReachable = $this->isDomainReachable($domain);
+            $method = '';
+            
+            if ($isReachable) {
+                // Try to determine which method succeeded
+                if ($this->checkUrl("https://" . $domain)) {
+                    $method = 'HTTPS';
+                } elseif ($this->checkUrl("http://" . $domain)) {
+                    $method = 'HTTP';
+                } elseif ($this->checkDnsRecord($domain)) {
+                    $method = 'DNS';
+                }
+            }
+            
+            $message = $isReachable 
+                ? 'Domain is reachable' . ($method ? " via $method" : '') 
+                : 'Domain is not reachable. Please ensure the domain exists and is accessible.';
+            
+            return response()->json([
+                'success' => true,
+                'is_reachable' => $isReachable,
+                'server_status' => $isReachable ? 'Online' : 'Offline',
+                'method' => $method,
+                'message' => $message
+            ]);
+        } catch (\Exception $e) {
+            \Log::error("Error in checkDomainReachability: " . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'is_reachable' => false,
+                'message' => 'Error checking domain: ' . $e->getMessage()
+            ]);
+        }
     }
 }
