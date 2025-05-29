@@ -61,6 +61,7 @@
             display: inline-block;
         }
         
+        /* Enhanced unsupported option styling */
         .unsupported-option {
             opacity: 0.5;
             text-decoration: line-through;
@@ -71,6 +72,19 @@
             color: #6c757d;
             margin-top: 5px;
             display: block;
+        }
+        
+        /* Category compatibility section highlight */
+        .compatibility-active {
+            border: 1px solid #0d6efd !important;
+            background-color: rgba(13, 110, 253, 0.05);
+        }
+        
+        /* Loading indicator for compatibility filtering */
+        .loading-spinner {
+            padding: 5px;
+            border-radius: 4px;
+            background-color: rgba(255, 255, 255, 0.8);
         }
     </style>
     @endsection
@@ -599,6 +613,7 @@
     @endsection
 
     @push('scripts')
+        <script src="{{ asset('js/site-compatibility.js') }}"></script>
         <script>
             $(document).ready(function() {
                 // Filter step navigation
@@ -1875,19 +1890,51 @@
 
                 // Function to get compatible options based on selected categories
                 function getCompatibleOptions(categoryIds) {
+                    // Show loading indicators for each section
+                    $('#countriesContainer, #selectedCategoriesBadgesAddForm').append('<div class="loading-spinner text-center my-2"><div class="spinner-border spinner-border-sm text-primary"></div> <small class="text-muted">Loading compatible options...</small></div>');
+                    
                     $.ajax({
                         url: '/sites/compatible-options',
                         type: 'GET',
-                        data: { categories: categoryIds },
+                        data: { 
+                            categories: categoryIds,
+                            option_type: 'all'
+                        },
                         success: function(response) {
+                            // Remove loading indicators
+                            $('.loading-spinner').remove();
+                            
                             if (response.success) {
-                                updateCompatibleCountries(response.countries);
-                                updateCompatiblePurposes(response.purposes);
-                                updateCompatibleFeatures(response.features);
+                                // Update UI with compatible options
+                                updateCompatibleCountries(response.countries || []);
+                                updateCompatiblePurposes(response.purposes || []);
+                                updateCompatibleFeatures(response.features || []);
+                                
+                                // Add visual indicator showing which category is filtering 
+                                const categoryNames = [];
+                                categoryIds.forEach(function(id) {
+                                    const name = $(`#category${id}`).data('category-name');
+                                    if (name) categoryNames.push(name);
+                                });
+                                
+                                if (categoryNames.length > 0) {
+                                    const noteText = `Showing options compatible with: <strong>${categoryNames.join(', ')}</strong>`;
+                                    $('#compatibilityInfoNote').remove();
+                                    $('#selectedCategoriesBadgesAddForm').append(`<div id="compatibilityInfoNote" class="alert alert-info py-1 px-2 mt-2 mb-0"><i class="fas fa-info-circle me-1"></i> ${noteText}</div>`);
+                                }
+                            } else {
+                                console.error('Failed to get compatible options:', response.message);
                             }
                         },
-                        error: function() {
-                            console.error('Failed to fetch compatible options');
+                        error: function(xhr) {
+                            // Remove loading indicators
+                            $('.loading-spinner').remove();
+                            
+                            console.error('Error fetching compatible options:', xhr.responseText);
+                            
+                            // Reset UI when error occurs
+                            $('.add-country, .add-purpose, .add-feature').prop('disabled', false)
+                                .closest('.form-check').removeClass('unsupported-option');
                         }
                     });
                 }
@@ -1975,8 +2022,20 @@
                     // Update badge display
                     updateCategoryBadges('#selectedCategoriesBadgesAddForm', selectedCategories);
                     
-                    // Get compatible options
-                    getCompatibleOptions(selectedCategories);
+                    // Add visual highlighting to sections that will be filtered
+                    if (selectedCategories.length > 0) {
+                        $('#countriesContainer, .add-purpose, .add-feature').closest('.border').addClass('compatibility-active');
+                        getCompatibleOptions(selectedCategories);
+                        
+                        // Show compatibility notes
+                        $('#countryCompatibilityNoteAdd, #purposeCompatibilityNoteAdd, #featureCompatibilityNoteAdd').removeClass('d-none');
+                    } else {
+                        // Reset everything when no categories selected
+                        $('#countriesContainer, .add-purpose, .add-feature').closest('.border').removeClass('compatibility-active');
+                        $('.add-country, .add-purpose, .add-feature').prop('disabled', false).closest('.form-check').removeClass('unsupported-option');
+                        $('#countryCompatibilityNoteAdd, #purposeCompatibilityNoteAdd, #featureCompatibilityNoteAdd').addClass('d-none');
+                        $('#compatibilityInfoNote').remove();
+                    }
                 });
 
                 // Clear compatibility filters when modal closes
@@ -1998,6 +2057,137 @@
                     
                     // Get compatible options for edit form
                     getCompatibleOptions(selectedCategories);
+                });
+
+                // Add functions for edit form compatibility filtering
+                function updateCompatibleEditCountries(compatibleIds) {
+                    // Reset all countries first
+                    $('.edit-country').prop('disabled', false).closest('.form-check').removeClass('unsupported-option');
+                    
+                    if (compatibleIds && compatibleIds.length > 0) {
+                        // Disable incompatible options
+                        $('.edit-country').each(function() {
+                            const countryId = parseInt($(this).val());
+                            if (!compatibleIds.includes(countryId)) {
+                                $(this).prop('disabled', true).prop('checked', false).closest('.form-check').addClass('unsupported-option');
+                            }
+                        });
+                        $('#countryCompatibilityNoteEdit').removeClass('d-none');
+                    } else {
+                        $('#countryCompatibilityNoteEdit').addClass('d-none');
+                    }
+                }
+
+                function updateCompatibleEditPurposes(compatibleIds) {
+                    // Reset all purposes first
+                    $('.edit-purpose').prop('disabled', false).closest('.form-check').removeClass('unsupported-option');
+                    
+                    if (compatibleIds && compatibleIds.length > 0) {
+                        // Disable incompatible options
+                        $('.edit-purpose').each(function() {
+                            const purposeId = parseInt($(this).val());
+                            if (!compatibleIds.includes(purposeId)) {
+                                $(this).prop('disabled', true).prop('checked', false).closest('.form-check').addClass('unsupported-option');
+                            }
+                        });
+                        $('#purposeCompatibilityNoteEdit').removeClass('d-none');
+                    } else {
+                        $('#purposeCompatibilityNoteEdit').addClass('d-none');
+                    }
+                }
+
+                function updateCompatibleEditFeatures(compatibleIds) {
+                    // Reset all features first
+                    $('.edit-feature').prop('disabled', false).closest('.form-check').removeClass('unsupported-option');
+                    
+                    if (compatibleIds && compatibleIds.length > 0) {
+                        // Disable incompatible options
+                        $('.edit-feature').each(function() {
+                            const featureId = parseInt($(this).val());
+                            if (!compatibleIds.includes(featureId)) {
+                                $(this).prop('disabled', true).prop('checked', false).closest('.form-check').addClass('unsupported-option');
+                            }
+                        });
+                        $('#featureCompatibilityNoteEdit').removeClass('d-none');
+                    } else {
+                        $('#featureCompatibilityNoteEdit').addClass('d-none');
+                    }
+                }
+
+                function getCompatibleEditOptions(categoryIds) {
+                    // Show loading indicators for each section
+                    $('#edit_countriesContainer, #selectedCategoriesBadgesEditForm').append('<div class="loading-spinner text-center my-2"><div class="spinner-border spinner-border-sm text-primary"></div> <small class="text-muted">Loading compatible options...</small></div>');
+                    
+                    $.ajax({
+                        url: '/sites/compatible-options',
+                        type: 'GET',
+                        data: { 
+                            categories: categoryIds,
+                            option_type: 'all'
+                        },
+                        success: function(response) {
+                            // Remove loading indicators
+                            $('.loading-spinner').remove();
+                            
+                            if (response.success) {
+                                // Update UI with compatible options
+                                updateCompatibleEditCountries(response.countries || []);
+                                updateCompatibleEditPurposes(response.purposes || []);
+                                updateCompatibleEditFeatures(response.features || []);
+                                
+                                // Add visual indicator showing which category is filtering 
+                                const categoryNames = [];
+                                categoryIds.forEach(function(id) {
+                                    const name = $(`#edit_category${id}`).data('category-name');
+                                    if (name) categoryNames.push(name);
+                                });
+                                
+                                if (categoryNames.length > 0) {
+                                    const noteText = `Showing options compatible with: <strong>${categoryNames.join(', ')}</strong>`;
+                                    $('#compatibilityInfoNoteEdit').remove();
+                                    $('#selectedCategoriesBadgesEditForm').append(`<div id="compatibilityInfoNoteEdit" class="alert alert-info py-1 px-2 mt-2 mb-0"><i class="fas fa-info-circle me-1"></i> ${noteText}</div>`);
+                                }
+                            } else {
+                                console.error('Failed to get compatible options:', response.message);
+                            }
+                        },
+                        error: function(xhr) {
+                            // Remove loading indicators
+                            $('.loading-spinner').remove();
+                            
+                            console.error('Error fetching compatible options:', xhr.responseText);
+                            
+                            // Reset UI when error occurs
+                            $('.edit-country, .edit-purpose, .edit-feature').prop('disabled', false)
+                                .closest('.form-check').removeClass('unsupported-option');
+                        }
+                    });
+                }
+
+                // Edit version - Listen for category changes in edit form
+                $(document).on('change', '.edit-category', function() {
+                    const selectedCategories = [];
+                    $('.edit-category:checked').each(function() {
+                        selectedCategories.push(parseInt($(this).val()));
+                    });
+                    
+                    // Update badge display
+                    updateCategoryBadges('#selectedCategoriesBadgesEditForm', selectedCategories);
+                    
+                    // Add visual highlighting to sections that will be filtered
+                    if (selectedCategories.length > 0) {
+                        $('#edit_countriesContainer, .edit-purpose, .edit-feature').closest('.border').addClass('compatibility-active');
+                        getCompatibleEditOptions(selectedCategories);
+                        
+                        // Show compatibility notes
+                        $('#countryCompatibilityNoteEdit, #purposeCompatibilityNoteEdit, #featureCompatibilityNoteEdit').removeClass('d-none');
+                    } else {
+                        // Reset everything when no categories selected
+                        $('#edit_countriesContainer, .edit-purpose, .edit-feature').closest('.border').removeClass('compatibility-active');
+                        $('.edit-country, .edit-purpose, .edit-feature').prop('disabled', false).closest('.form-check').removeClass('unsupported-option');
+                        $('#countryCompatibilityNoteEdit, #purposeCompatibilityNoteEdit, #featureCompatibilityNoteEdit').addClass('d-none');
+                        $('#compatibilityInfoNoteEdit').remove();
+                    }
                 });
             });
         </script>
