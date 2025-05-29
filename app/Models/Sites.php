@@ -18,6 +18,7 @@ class Sites extends Model
         'theme',
         'rating',
         'max_rating',
+        'da',
     ];
 
     /**

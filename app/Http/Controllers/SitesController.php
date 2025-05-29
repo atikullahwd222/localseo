@@ -24,7 +24,20 @@ class SitesController extends Controller
     public function storeSite(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'url'         => 'required|string|max:191',
+            'url'         => [
+                'required',
+                'string',
+                'max:191',
+                'regex:/^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/', // Only allow domain names
+                function ($attribute, $value, $fail) {
+                    // Check if domain already exists
+                    $exists = Sites::where('url', $value)->exists();
+                    if ($exists) {
+                        $fail('This domain is already registered in the system.');
+                    }
+                },
+            ],
+            'da'          => 'nullable|integer|min:0|max:100',
             'description' => 'nullable|string',
             'status'      => 'required|in:active,inactive',
             'type'        => 'required|in:general,blog,shop,portfolio',
@@ -50,6 +63,7 @@ class SitesController extends Controller
         // Create site using mass assignment
         $site = Sites::create([
             'url'         => $request->input('url'),
+            'da'          => $request->input('da'),
             'description' => $request->input('description'),
             'status'      => $request->input('status'),
             'type'        => $request->input('type'),
@@ -266,7 +280,22 @@ class SitesController extends Controller
     public function updateSite(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'url'         => 'required|string|max:191',
+            'url'         => [
+                'required',
+                'string',
+                'max:191',
+                'regex:/^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/', // Only allow domain names
+                function ($attribute, $value, $fail) use ($id) {
+                    // Check if domain already exists (excluding current site)
+                    $exists = Sites::where('url', $value)
+                                  ->where('id', '!=', $id)
+                                  ->exists();
+                    if ($exists) {
+                        $fail('This domain is already registered in the system.');
+                    }
+                },
+            ],
+            'da'          => 'nullable|integer|min:0|max:100',
             'description' => 'nullable|string',
             'status'      => 'required|in:active,inactive',
             'type'        => 'required|in:general,blog,shop,portfolio',
@@ -294,6 +323,7 @@ class SitesController extends Controller
         // Update site using mass assignment
         $site->update([
             'url'         => $request->input('url'),
+            'da'          => $request->input('da'),
             'description' => $request->input('description'),
             'status'      => $request->input('status'),
             'type'        => $request->input('type'),
@@ -515,5 +545,29 @@ class SitesController extends Controller
         }
         
         return $query->pluck('id')->toArray();
+    }
+
+    /**
+     * Check if a domain already exists
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function checkDomainExists(Request $request)
+    {
+        $domain = $request->input('domain');
+        $excludeId = $request->input('exclude_id');
+        
+        $query = Sites::where('url', $domain);
+        
+        if ($excludeId) {
+            $query->where('id', '!=', $excludeId);
+        }
+        
+        $exists = $query->exists();
+        
+        return response()->json([
+            'exists' => $exists
+        ]);
     }
 }

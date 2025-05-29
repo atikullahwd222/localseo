@@ -167,4 +167,7 @@ Route::middleware(['auth', 'role:admin,editor', 'check.status'])->group(function
     Route::delete('/sites/{id}', [SitesController::class, 'destroySite'])->name('sites.destroy');
 });
 
+// Domain validation route
+Route::middleware(['auth', 'check.status'])->get('/api/check-domain-exists', [SitesController::class, 'checkDomainExists'])->name('sites.check-domain');
+
 require __DIR__.'/auth.php';

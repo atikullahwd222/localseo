@@ -86,6 +86,20 @@
             border-radius: 4px;
             background-color: rgba(255, 255, 255, 0.8);
         }
+        
+        /* Domain validation styles */
+        .is-loading {
+            background-image: url('data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid"><circle cx="50" cy="50" fill="none" stroke="%236c757d" stroke-width="10" r="35" stroke-dasharray="164.93361431346415 56.97787143782138"><animateTransform attributeName="transform" type="rotate" repeatCount="indefinite" dur="1s" values="0 50 50;360 50 50" keyTimes="0;1"></animateTransform></circle></svg>');
+            background-position: calc(100% - 10px) center;
+            background-repeat: no-repeat;
+            background-size: 20px;
+        }
+        
+        /* Override Bootstrap validation icons */
+        .form-control.is-invalid, .form-control.is-valid {
+            padding-right: 2.375rem;
+            background-position: right calc(0.375em + 0.1875rem) center;
+        }
     </style>
     @endsection
 
@@ -246,6 +260,7 @@
                                     <thead>
                                         <tr>
                                             <th scope="col">URL</th>
+                                            <th scope="col">DA</th>
                                             <th scope="col">Status</th>
                                             <th scope="col">Rating</th>
                                             <th scope="col">Categories</th>
@@ -255,6 +270,7 @@
                                     </thead>
                                     <tbody>
                                         <tr id="loading-spinner" style="display: none;">
+                                                <td colspan="7" class="text-center">
                                                 <td colspan="6" class="text-center">
                                                 <div class="d-flex justify-content-center align-items-center py-4">
                                                     <div class="spinner-border text-primary" role="status">
@@ -294,11 +310,19 @@
                         <form id="addSiteForm" action="" method="post">
                             @csrf
                             <div class="row mb-3">
-                                <div class="col-md-12">
+                                <div class="col-md-8">
                                     <div class="form-group mb-3">
-                                        <label for="url">Site URL</label>
-                                        <input type="text" class="form-control" id="url" name="url" required>
-                                        <small class="text-muted">Enter site name or identifier</small>
+                                        <label for="url">Domain Name</label>
+                                        <input type="text" class="form-control" id="url" name="url" required placeholder="example.com">
+                                        <small class="text-muted">Enter domain name only (e.g., example.com). Do not include http:// or www.</small>
+                                        <div class="invalid-feedback" id="url_error"></div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-group mb-3">
+                                        <label for="da">DA (Domain Authority)</label>
+                                        <input type="number" class="form-control" id="da" name="da" min="0" max="100" placeholder="1-100">
+                                        <small class="text-muted">Enter a value between 0-100</small>
                                     </div>
                                 </div>
                             </div>
@@ -460,11 +484,19 @@
                             <input type="hidden" id="edit_id" name="edit_id">
 
                             <div class="row mb-3">
-                                <div class="col-md-12">
+                                <div class="col-md-8">
                                     <div class="form-group mb-3">
-                                        <label for="edit_url">Site URL</label>
-                                        <input type="text" class="form-control" id="edit_url" name="edit_url" required>
-                                        <small class="text-muted">Enter site name or identifier</small>
+                                        <label for="edit_url">Domain Name</label>
+                                        <input type="text" class="form-control" id="edit_url" name="edit_url" required placeholder="example.com">
+                                        <small class="text-muted">Enter domain name only (e.g., example.com). Do not include http:// or www.</small>
+                                        <div class="invalid-feedback" id="edit_url_error"></div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-group mb-3">
+                                        <label for="edit_da">DA (Domain Authority)</label>
+                                        <input type="number" class="form-control" id="edit_da" name="edit_da" min="0" max="100" placeholder="1-100">
+                                        <small class="text-muted">Enter a value between 0-100</small>
                                     </div>
                                 </div>
                             </div>
@@ -921,6 +953,7 @@
                                 $('tbody').append(`
                                     <tr>
                                         <td>${siteUrl}</td>
+                                        <td>${site.da || 'N/A'}</td>
                                         <td>${siteStatus}</td>
                                         <td class="${ratingClass}">${siteRating} / ${siteMaxRating}</td>
                                         <td>${categoriesList}</td>
@@ -1467,6 +1500,7 @@
                                 // Populate basic fields
                                 $('#edit_id').val(response.site.id);
                                 $('#edit_url').val(response.site.url);
+                                $('#edit_da').val(response.site.da);
                                 $('#edit_description').val(response.site.description);
                                 $('#edit_status').val(response.site.status);
                                 $('#edit_type').val(response.site.type);
@@ -1571,6 +1605,7 @@
                     const formData = {
                         id: $('#edit_id').val(),
                         url: $('#edit_url').val(),
+                        da: $('#edit_da').val(),
                         description: $('#edit_description').val(),
                         status: $('#edit_status').val(),
                         type: $('#edit_type').val(),
@@ -1630,6 +1665,16 @@
 
                 $('.saveSiteBtn').on('click', function(e) {
                     e.preventDefault();
+                    
+                    // Clear previous validation errors
+                    $('.is-invalid').removeClass('is-invalid');
+                    $('.invalid-feedback').text('');
+                    
+                    // Add loading state to the button
+                    const $btn = $(this);
+                    const originalText = $btn.html();
+                    $btn.html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...');
+                    $btn.prop('disabled', true);
 
                     // Collect selected categories, countries, purposes, and features
                     const selectedCategories = [];
@@ -1653,8 +1698,8 @@
                     });
 
                     const formData = {
-                        name: $('#name').val(),
                         url: $('#url').val(),
+                        da: $('#da').val(),
                         description: $('#description').val(),
                         status: $('#status').val(),
                         type: $('#type').val(),
@@ -1673,6 +1718,34 @@
                         data: formData,
                         dataType: "json",
                         success: function(response) {
+                            // Restore button state
+                            $btn.html(originalText);
+                            $btn.prop('disabled', false);
+                            
+                            if (response.status === 400) {
+                                // Handle validation errors
+                                if (response.errors) {
+                                    $.each(response.errors, function(field, messages) {
+                                        const $input = $('#' + field);
+                                        const $error = $('#' + field + '_error');
+                                        
+                                        $input.addClass('is-invalid');
+                                        $error.text(messages[0]);
+                                        
+                                        // Special handling for URL errors - show more prominently
+                                        if (field === 'url' && messages[0].includes('already registered')) {
+                                            Swal.fire({
+                                                title: 'Domain Already Exists',
+                                                text: messages[0],
+                                                icon: 'warning',
+                                                confirmButtonText: 'OK'
+                                            });
+                                        }
+                                    });
+                                }
+                                return;
+                            }
+                            
                             $('#AddSiteModal').modal('hide');
                             Swal.fire({
                                 title: response.status === 200 ? "Site Created!" : "Error!",
@@ -1690,6 +1763,10 @@
                             });
                         },
                         error: function(xhr) {
+                            // Restore button state
+                            $btn.html(originalText);
+                            $btn.prop('disabled', false);
+                            
                             $('#AddSiteModal').modal('hide');
                             Swal.fire({
                                 title: "Error!",
@@ -2189,6 +2266,174 @@
                         $('#compatibilityInfoNoteEdit').remove();
                     }
                 });
+            });
+        </script>
+        <!-- Add to the end of the scripts section -->
+        <script>
+            // Function to validate domain format
+            function validateDomain(domain) {
+                // Basic domain regex pattern - allows subdomains and various TLDs
+                const domainPattern = /^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$/;
+                return domainPattern.test(domain);
+            }
+            
+            // Add domain validation to URL field
+            $('#url').on('blur', function() {
+                const domain = $(this).val().trim();
+                const $error = $('#url_error');
+                const $input = $(this);
+                
+                // First validate the format
+                if (domain && !validateDomain(domain)) {
+                    $input.addClass('is-invalid');
+                    $error.text('Please enter a valid domain name (e.g., example.com)');
+                    return;
+                }
+                
+                // If format is valid and domain is not empty, check if it exists
+                if (domain) {
+                    // Show loading indicator
+                    $input.addClass('is-loading');
+                    
+                    $.ajax({
+                        url: '{{ route("sites.check-domain") }}',
+                        type: 'GET',
+                        data: { domain: domain },
+                        success: function(response) {
+                            $input.removeClass('is-loading');
+                            
+                            if (response.exists) {
+                                $input.addClass('is-invalid');
+                                $error.text('This domain is already registered in the system.');
+                            } else {
+                                $input.removeClass('is-invalid').addClass('is-valid');
+                                $error.text('');
+                            }
+                        },
+                        error: function() {
+                            $input.removeClass('is-loading');
+                            // Don't show error on AJAX failure
+                            $input.removeClass('is-invalid');
+                            $error.text('');
+                        }
+                    });
+                } else {
+                    $input.removeClass('is-invalid');
+                    $error.text('');
+                }
+            });
+            
+            // Add domain validation to edit URL field
+            $('#edit_url').on('blur', function() {
+                const domain = $(this).val().trim();
+                const $error = $('#edit_url_error');
+                const $input = $(this);
+                const siteId = $('#edit_id').val();
+                
+                // First validate the format
+                if (domain && !validateDomain(domain)) {
+                    $input.addClass('is-invalid');
+                    $error.text('Please enter a valid domain name (e.g., example.com)');
+                    return;
+                }
+                
+                // If format is valid and domain is not empty, check if it exists (excluding current site)
+                if (domain) {
+                    // Show loading indicator
+                    $input.addClass('is-loading');
+                    
+                    $.ajax({
+                        url: '{{ route("sites.check-domain") }}',
+                        type: 'GET',
+                        data: { 
+                            domain: domain,
+                            exclude_id: siteId
+                        },
+                        success: function(response) {
+                            $input.removeClass('is-loading');
+                            
+                            if (response.exists) {
+                                $input.addClass('is-invalid');
+                                $error.text('This domain is already registered in the system.');
+                            } else {
+                                $input.removeClass('is-invalid').addClass('is-valid');
+                                $error.text('');
+                            }
+                        },
+                        error: function() {
+                            $input.removeClass('is-loading');
+                            // Don't show error on AJAX failure
+                            $input.removeClass('is-invalid');
+                            $error.text('');
+                        }
+                    });
+                } else {
+                    $input.removeClass('is-invalid');
+                    $error.text('');
+                }
+            });
+            
+            // Validate URL before form submission
+            $('.saveSiteBtn').on('click', function(e) {
+                const domain = $('#url').val().trim();
+                const $error = $('#url_error');
+                
+                if (!domain) {
+                    $('#url').addClass('is-invalid');
+                    $error.text('Domain name is required');
+                    e.preventDefault();
+                    return false;
+                }
+                
+                if (!validateDomain(domain)) {
+                    $('#url').addClass('is-invalid');
+                    $error.text('Please enter a valid domain name (e.g., example.com)');
+                    e.preventDefault();
+                    return false;
+                }
+                
+                // Check for the invalid class which would be set by the AJAX validation
+                if ($('#url').hasClass('is-invalid')) {
+                    e.preventDefault();
+                    return false;
+                }
+            });
+            
+            // Validate edit URL before form submission
+            $('.edit_btn').on('click', function(e) {
+                const domain = $('#edit_url').val().trim();
+                const $error = $('#edit_url_error');
+                
+                if (!domain) {
+                    $('#edit_url').addClass('is-invalid');
+                    $error.text('Domain name is required');
+                    e.preventDefault();
+                    return false;
+                }
+                
+                if (!validateDomain(domain)) {
+                    $('#edit_url').addClass('is-invalid');
+                    $error.text('Please enter a valid domain name (e.g., example.com)');
+                    e.preventDefault();
+                    return false;
+                }
+                
+                // Check for the invalid class which would be set by the AJAX validation
+                if ($('#edit_url').hasClass('is-invalid')) {
+                    e.preventDefault();
+                    return false;
+                }
+            });
+            
+            // Clear validation state when modal is opened
+            $('#AddSiteModal').on('shown.bs.modal', function() {
+                $('#url').removeClass('is-invalid is-valid');
+                $('#url_error').text('');
+            });
+            
+            $('#EditModal').on('shown.bs.modal', function() {
+                $('#edit_url').removeClass('is-invalid is-valid');
+                $('#edit_url_error').text('');
             });
         </script>
     @endpush
