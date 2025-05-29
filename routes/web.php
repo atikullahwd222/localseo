@@ -79,6 +79,11 @@ Route::middleware(['auth', 'check.status'])->group(function () {
     
     // Get all settings data for site creation
     Route::get('/site-settings/data', [SiteSettingsController::class, 'getSettingsData'])->name('site.settings.data');
+    
+    // Compatibility Routes
+    Route::get('/site-settings/categories/{id}/countries', [SiteSettingsController::class, 'getCompatibleCountries'])->name('categories.countries');
+    Route::get('/site-settings/categories/{id}/purposes', [SiteSettingsController::class, 'getCompatiblePurposes'])->name('categories.purposes');
+    Route::get('/site-settings/categories/{id}/features', [SiteSettingsController::class, 'getCompatibleFeatures'])->name('categories.features');
 });
 
 Route::middleware(['auth'])->group(function () {

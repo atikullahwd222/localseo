@@ -24,8 +24,7 @@ class SitesController extends Controller
     public function storeSite(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'name'        => 'required|max:191',
-            'url'         => 'required|url|max:191',
+            'url'         => 'required|string|max:191',
             'description' => 'nullable|string',
             'status'      => 'required|in:active,inactive',
             'type'        => 'required|in:general,blog,shop,portfolio',
@@ -50,7 +49,6 @@ class SitesController extends Controller
 
         // Create site using mass assignment
         $site = Sites::create([
-            'name'        => $request->input('name'),
             'url'         => $request->input('url'),
             'description' => $request->input('description'),
             'status'      => $request->input('status'),
@@ -268,8 +266,7 @@ class SitesController extends Controller
     public function updateSite(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'name'        => 'required|max:191',
-            'url'         => 'required|url|max:191',
+            'url'         => 'required|string|max:191',
             'description' => 'nullable|string',
             'status'      => 'required|in:active,inactive',
             'type'        => 'required|in:general,blog,shop,portfolio',
@@ -293,71 +290,65 @@ class SitesController extends Controller
         }
 
         $site = Sites::findOrFail($id);
-        if ($site) {
-            $site->update([
-                'name'        => $request->input('name'),
-                'url'         => $request->input('url'),
-                'description' => $request->input('description'),
-                'status'      => $request->input('status'),
-                'type'        => $request->input('type'),
-                'theme'       => $request->input('theme'),
-            ]);
-            
-            // Update categories
-            if ($request->has('categories')) {
-                $site->categories()->sync($request->categories);
-            }
-            
-            // Handle countries - allowing both global and specific countries
-            $site->countries()->detach(); // Remove all existing countries first
-            
-            if ($request->has('countries') && is_array($request->countries) && count($request->countries) > 0) {
-                $countrySyncData = [];
-                foreach($request->countries as $countryId) {
-                    $countrySyncData[$countryId] = ['is_global' => $request->input('is_global') == true];
-                }
-                $site->countries()->attach($countrySyncData);
-            } elseif ($request->input('is_global') == true) {
-                // If only global flag is set but no countries selected, attach to first country
-                $country = Country::first();
-                if ($country) {
-                    $site->countries()->attach($country->id, ['is_global' => true]);
-                }
-            }
-            
-            // Update work purposes
-            if ($request->has('purposes')) {
-                $site->workPurposes()->sync($request->purposes);
-            }
-            
-            // Update features if they exist
-            if ($request->has('features') && is_array($request->features)) {
-                // Get all features
-                $allFeatures = SiteFeature::all();
-                
-                // Set up sync data
-                $syncData = [];
-                foreach ($allFeatures as $feature) {
-                    $syncData[$feature->id] = ['has_feature' => in_array($feature->id, $request->features)];
-                }
-                
-                $site->features()->sync($syncData);
-                
-                // Calculate rating
-                $site->calculateRating();
-            }
-            
-            return response()->json([
-                'status' => 200,
-                'message' => 'Site updated successfully!',
-                'site' => $site,
-            ]);
-        } else {
-            return response()->json([
-                'status' => 404,
-                'message' => 'Site not found',
-            ]);
+
+        // Update site using mass assignment
+        $site->update([
+            'url'         => $request->input('url'),
+            'description' => $request->input('description'),
+            'status'      => $request->input('status'),
+            'type'        => $request->input('type'),
+            'theme'       => $request->input('theme'),
+        ]);
+        
+        // Update categories
+        if ($request->has('categories')) {
+            $site->categories()->sync($request->categories);
         }
+        
+        // Handle countries - allowing both global and specific countries
+        $site->countries()->detach(); // Remove all existing countries first
+        
+        if ($request->has('countries') && is_array($request->countries) && count($request->countries) > 0) {
+            $countrySyncData = [];
+            foreach($request->countries as $countryId) {
+                $countrySyncData[$countryId] = ['is_global' => $request->input('is_global') == true];
+            }
+            $site->countries()->attach($countrySyncData);
+        } elseif ($request->input('is_global') == true) {
+            // If only global flag is set but no countries selected, attach to first country
+            $country = Country::first();
+            if ($country) {
+                $site->countries()->attach($country->id, ['is_global' => true]);
+            }
+        }
+        
+        // Update work purposes
+        if ($request->has('purposes')) {
+            $site->workPurposes()->sync($request->purposes);
+        }
+        
+        // Update features if they exist
+        if ($request->has('features') && is_array($request->features)) {
+            // Get all features
+            $allFeatures = SiteFeature::all();
+            
+            // Set up sync data
+            $syncData = [];
+            foreach ($allFeatures as $feature) {
+                $syncData[$feature->id] = ['has_feature' => in_array($feature->id, $request->features)];
+            }
+            
+            $site->features()->sync($syncData);
+            
+            // Calculate rating
+            $site->calculateRating();
+        }
+        
+        return response()->json([
+            'status' => 200,
+            'message' => 'Site updated successfully!',
+            'site' => $site,
+        ]);
     }
 
     public function destroySite($id)

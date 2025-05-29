@@ -231,18 +231,17 @@
                                 <table class="table table-hover">
                                     <thead>
                                         <tr>
-                                            <th scope="col">Site Name</th>
                                             <th scope="col">URL</th>
                                             <th scope="col">Status</th>
-                                                <th scope="col">Rating</th>
-                                                <th scope="col">Categories</th>
-                                                <th scope="col">Countries</th>
+                                            <th scope="col">Rating</th>
+                                            <th scope="col">Categories</th>
+                                            <th scope="col">Countries</th>
                                             <th scope="col">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr id="loading-spinner" style="display: none;">
-                                                <td colspan="7" class="text-center">
+                                                <td colspan="6" class="text-center">
                                                 <div class="d-flex justify-content-center align-items-center py-4">
                                                     <div class="spinner-border text-primary" role="status">
                                                         <span class="visually-hidden">Loading...</span>
@@ -251,7 +250,7 @@
                                             </td>
                                         </tr>
                                             <tr id="no-results" class="d-none">
-                                                <td colspan="7" class="text-center py-4">
+                                                <td colspan="6" class="text-center py-4">
                                                     <i class="fas fa-search fa-2x text-muted mb-3"></i>
                                                     <h5 class="text-muted">No matching sites found</h5>
                                                     <p class="text-muted">Try adjusting your filter criteria</p>
@@ -281,16 +280,11 @@
                         <form id="addSiteForm" action="" method="post">
                             @csrf
                             <div class="row mb-3">
-                                <div class="col-md-6">
+                                <div class="col-md-12">
                                     <div class="form-group mb-3">
-                                <label for="name">Site Name</label>
-                                <input type="text" class="form-control" id="name" name="name" required>
-                            </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="form-group mb-3">
-                                <label for="url">Site URL</label>
-                                <input type="url" class="form-control" id="url" name="url" required>
+                                        <label for="url">Site URL</label>
+                                        <input type="text" class="form-control" id="url" name="url" required>
+                                        <small class="text-muted">Enter site name or identifier</small>
                                     </div>
                                 </div>
                             </div>
@@ -452,16 +446,11 @@
                             <input type="hidden" id="edit_id" name="edit_id">
 
                             <div class="row mb-3">
-                                <div class="col-md-6">
+                                <div class="col-md-12">
                                     <div class="form-group mb-3">
-                                <label for="edit_name">Site Name</label>
-                                <input type="text" class="form-control" id="edit_name" name="edit_name" required>
-                            </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="form-group mb-3">
-                                <label for="edit_url">Site URL</label>
-                                <input type="url" class="form-control" id="edit_url" name="edit_url" required>
+                                        <label for="edit_url">Site URL</label>
+                                        <input type="text" class="form-control" id="edit_url" name="edit_url" required>
+                                        <small class="text-muted">Enter site name or identifier</small>
                                     </div>
                                 </div>
                             </div>
@@ -916,7 +905,6 @@
                                 
                                 $('tbody').append(`
                                     <tr>
-                                        <td>${siteName}</td>
                                         <td>${siteUrl}</td>
                                         <td>${siteStatus}</td>
                                         <td class="${ratingClass}">${siteRating} / ${siteMaxRating}</td>
@@ -1463,7 +1451,6 @@
                                 
                                 // Populate basic fields
                                 $('#edit_id').val(response.site.id);
-                                $('#edit_name').val(response.site.name);
                                 $('#edit_url').val(response.site.url);
                                 $('#edit_description').val(response.site.description);
                                 $('#edit_status').val(response.site.status);
@@ -1568,7 +1555,6 @@
 
                     const formData = {
                         id: $('#edit_id').val(),
-                        name: $('#edit_name').val(),
                         url: $('#edit_url').val(),
                         description: $('#edit_description').val(),
                         status: $('#edit_status').val(),
@@ -1885,6 +1871,133 @@
                         $nextButton.removeClass('btn-primary').addClass('btn-secondary');
                         $nextButton.text('Next');
                     }
+                });
+
+                // Function to get compatible options based on selected categories
+                function getCompatibleOptions(categoryIds) {
+                    $.ajax({
+                        url: '/sites/compatible-options',
+                        type: 'GET',
+                        data: { categories: categoryIds },
+                        success: function(response) {
+                            if (response.success) {
+                                updateCompatibleCountries(response.countries);
+                                updateCompatiblePurposes(response.purposes);
+                                updateCompatibleFeatures(response.features);
+                            }
+                        },
+                        error: function() {
+                            console.error('Failed to fetch compatible options');
+                        }
+                    });
+                }
+
+                // Update country options based on compatibility
+                function updateCompatibleCountries(compatibleIds) {
+                    // Reset all countries first
+                    $('.add-country').prop('disabled', false).closest('.form-check').removeClass('unsupported-option');
+                    
+                    if (compatibleIds.length > 0) {
+                        // Disable incompatible options
+                        $('.add-country').each(function() {
+                            const countryId = parseInt($(this).val());
+                            if (!compatibleIds.includes(countryId)) {
+                                $(this).prop('disabled', true).prop('checked', false).closest('.form-check').addClass('unsupported-option');
+                            }
+                        });
+                        $('#countryCompatibilityNoteAdd').removeClass('d-none');
+                    } else {
+                        $('#countryCompatibilityNoteAdd').addClass('d-none');
+                    }
+                }
+
+                // Update purpose options based on compatibility
+                function updateCompatiblePurposes(compatibleIds) {
+                    // Reset all purposes first
+                    $('.add-purpose').prop('disabled', false).closest('.form-check').removeClass('unsupported-option');
+                    
+                    if (compatibleIds.length > 0) {
+                        // Disable incompatible options
+                        $('.add-purpose').each(function() {
+                            const purposeId = parseInt($(this).val());
+                            if (!compatibleIds.includes(purposeId)) {
+                                $(this).prop('disabled', true).prop('checked', false).closest('.form-check').addClass('unsupported-option');
+                            }
+                        });
+                        $('#purposeCompatibilityNoteAdd').removeClass('d-none');
+                    } else {
+                        $('#purposeCompatibilityNoteAdd').addClass('d-none');
+                    }
+                }
+
+                // Update feature options based on compatibility
+                function updateCompatibleFeatures(compatibleIds) {
+                    // Reset all features first
+                    $('.add-feature').prop('disabled', false).closest('.form-check').removeClass('unsupported-option');
+                    
+                    if (compatibleIds.length > 0) {
+                        // Disable incompatible options
+                        $('.add-feature').each(function() {
+                            const featureId = parseInt($(this).val());
+                            if (!compatibleIds.includes(featureId)) {
+                                $(this).prop('disabled', true).prop('checked', false).closest('.form-check').addClass('unsupported-option');
+                            }
+                        });
+                        $('#featureCompatibilityNoteAdd').removeClass('d-none');
+                    } else {
+                        $('#featureCompatibilityNoteAdd').addClass('d-none');
+                    }
+                }
+
+                // Create badge display to show selected categories
+                function updateCategoryBadges(selector, selectedCategories) {
+                    const container = $(selector);
+                    container.empty();
+                    
+                    if (selectedCategories.length > 0) {
+                        container.append('<span class="mb-1 d-block">Selected categories:</span>');
+                        selectedCategories.forEach(function(category) {
+                            const name = $(`#category${category}`).data('category-name');
+                            if (name) {
+                                container.append(`<span class="badge bg-primary me-1 mb-1">${name}</span>`);
+                            }
+                        });
+                    }
+                }
+
+                // Listen for category changes and update compatible options
+                $(document).on('change', '.add-category', function() {
+                    const selectedCategories = [];
+                    $('.add-category:checked').each(function() {
+                        selectedCategories.push(parseInt($(this).val()));
+                    });
+                    
+                    // Update badge display
+                    updateCategoryBadges('#selectedCategoriesBadgesAddForm', selectedCategories);
+                    
+                    // Get compatible options
+                    getCompatibleOptions(selectedCategories);
+                });
+
+                // Clear compatibility filters when modal closes
+                $('#AddSiteModal').on('hidden.bs.modal', function() {
+                    $('.add-country, .add-purpose, .add-feature').prop('disabled', false).closest('.form-check').removeClass('unsupported-option');
+                    $('#countryCompatibilityNoteAdd, #purposeCompatibilityNoteAdd, #featureCompatibilityNoteAdd').addClass('d-none');
+                    $('#selectedCategoriesBadgesAddForm').empty();
+                });
+
+                // Edit version - Listen for category changes in edit form
+                $(document).on('change', '.edit-category', function() {
+                    const selectedCategories = [];
+                    $('.edit-category:checked').each(function() {
+                        selectedCategories.push(parseInt($(this).val()));
+                    });
+                    
+                    // Update badge display
+                    updateCategoryBadges('#selectedCategoriesBadgesEditForm', selectedCategories);
+                    
+                    // Get compatible options for edit form
+                    getCompatibleOptions(selectedCategories);
                 });
             });
         </script>

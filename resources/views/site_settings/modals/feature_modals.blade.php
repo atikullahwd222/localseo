@@ -24,6 +24,14 @@
                         <div class="form-text">Assign points to this feature (higher points = more impact on site rating)</div>
                         <div class="invalid-feedback" id="feature_points_error"></div>
                     </div>
+                    <div class="mb-3">
+                        <label for="feature_categories" class="form-label">Compatible Site Categories</label>
+                        <select class="form-control select2" id="feature_categories" name="category_ids[]" multiple>
+                            <!-- Categories will be loaded dynamically -->
+                        </select>
+                        <div class="form-text">Select which site categories this feature is compatible with</div>
+                        <div class="invalid-feedback" id="feature_categories_error"></div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -63,6 +71,14 @@
                         <input type="number" class="form-control" id="edit_feature_points" name="points" min="1" max="10" value="1" required>
                         <div class="form-text">Assign points to this feature (higher points = more impact on site rating)</div>
                         <div class="invalid-feedback" id="edit_feature_points_error"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_feature_categories" class="form-label">Compatible Site Categories</label>
+                        <select class="form-control select2" id="edit_feature_categories" name="category_ids[]" multiple>
+                            <!-- Categories will be loaded dynamically -->
+                        </select>
+                        <div class="form-text">Select which site categories this feature is compatible with</div>
+                        <div class="invalid-feedback" id="edit_feature_categories_error"></div>
                     </div>
                 </form>
             </div>

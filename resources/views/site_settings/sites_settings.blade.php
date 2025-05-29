@@ -1,6 +1,22 @@
 <x-app-layout>
     @section('title', 'Site Settings')
 
+    @section('styles')
+        <!-- Select2 CSS -->
+        <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+        <style>
+            .badge {
+                display: inline-block;
+                white-space: normal;
+                text-align: left;
+                line-height: 1.4;
+                font-weight: normal;
+                font-size: 0.8rem;
+                margin-bottom: 2px;
+            }
+        </style>
+    @endsection
+
     @section('content')
         <div class="container-fluid py-4">
             <div class="row">
@@ -16,7 +32,7 @@
                             <div class="table-responsive">
                                 <table class="table table-hover" id="categoryTable">
                                     <thead>
-                                        <tr>
+                                        <tr class="bg-primary text-white">
                                             <th>#</th>
                                             <th>Name</th>
                                             <th>Description</th>
@@ -52,16 +68,17 @@
                             <div class="table-responsive">
                                 <table class="table table-hover" id="countryTable">
                                     <thead>
-                                        <tr>
+                                        <tr class="bg-primary text-white">
                                             <th>#</th>
                                             <th>Name</th>
                                             <th>Description</th>
+                                            <th>Compatible Categories</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr>
-                                            <td colspan="4" class="text-center">
+                                            <td colspan="5" class="text-center">
                                                 <div class="spinner-border text-primary" role="status">
                                                     <span class="visually-hidden">Loading...</span>
                                                 </div>
@@ -88,16 +105,17 @@
                             <div class="table-responsive">
                                 <table class="table table-hover" id="purposeTable">
                                     <thead>
-                                        <tr>
+                                        <tr class="bg-primary text-white">
                                             <th>#</th>
                                             <th>Name</th>
                                             <th>Description</th>
+                                            <th>Compatible Categories</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr>
-                                            <td colspan="4" class="text-center">
+                                            <td colspan="5" class="text-center">
                                                 <div class="spinner-border text-primary" role="status">
                                                     <span class="visually-hidden">Loading...</span>
                                                 </div>
@@ -124,17 +142,18 @@
                             <div class="table-responsive">
                                 <table class="table table-hover" id="featureTable">
                                     <thead>
-                                        <tr>
+                                        <tr class="bg-primary text-white">
                                             <th>#</th>
                                             <th>Name</th>
                                             <th>Description</th>
                                             <th>Points</th>
+                                            <th>Compatible Categories</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr>
-                                            <td colspan="5" class="text-center">
+                                            <td colspan="6" class="text-center">
                                                 <div class="spinner-border text-primary" role="status">
                                                     <span class="visually-hidden">Loading...</span>
                                                 </div>
@@ -163,6 +182,8 @@
     @endsection
 
     @push('scripts')
+        <!-- Select2 JS -->
+        <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
         <script src="{{ asset('js/site_settings.js') }}"></script>
     @endpush
 </x-app-layout> 

@@ -6,6 +6,12 @@ $(document).ready(function() {
         }
     });
 
+    // Initialize Select2
+    initializeSelect2();
+    
+    // Add category filter controls
+    addFilteringControls();
+
     // Load all data on page load
     loadCategories();
     loadCountries();
@@ -45,6 +51,9 @@ $(document).ready(function() {
                             </tr>
                         `);
                     });
+                    
+                    // Populate category dropdowns after loading
+                    populateCategoryDropdowns(response.categories);
                 }
             },
             error: function(xhr) {
@@ -242,11 +251,18 @@ $(document).ready(function() {
                     }
                     
                     $.each(response.countries, function(index, country) {
+                        // Extract category names for display
+                        let categoryNames = '';
+                        if (country.compatible_categories && country.compatible_categories.length > 0) {
+                            categoryNames = country.compatible_categories.map(cat => cat.name).join(', ');
+                        }
+
                         $('#countryTable tbody').append(`
-                            <tr>
+                            <tr class="country-row" data-categories='${JSON.stringify(country.compatible_categories.map(c => c.id))}'>
                                 <td>${index + 1}</td>
                                 <td>${country.name}</td>
                                 <td>${country.description || '-'}</td>
+                                <td><span class="badge bg-info">${categoryNames || 'All Categories'}</span></td>
                                 <td>
                                     <button class="btn btn-sm btn-info edit-country" data-id="${country.id}">
                                         <i class="bx bx-edit"></i>
@@ -278,7 +294,8 @@ $(document).ready(function() {
         
         const countryData = {
             name: $('#country_name').val(),
-            description: $('#country_description').val()
+            description: $('#country_description').val(),
+            category_ids: $('#country_categories').val()
         };
         
         $.ajax({
@@ -331,6 +348,13 @@ $(document).ready(function() {
                     $('#edit_country_id').val(response.country.id);
                     $('#edit_country_name').val(response.country.name);
                     $('#edit_country_description').val(response.country.description);
+                    
+                    // Set selected categories
+                    if (response.country.compatible_categories) {
+                        const categoryIds = response.country.compatible_categories.map(cat => cat.id);
+                        $('#edit_country_categories').val(categoryIds).trigger('change');
+                    }
+                    
                     $('#editCountryModal').modal('show');
                 }
             },
@@ -353,7 +377,8 @@ $(document).ready(function() {
         const countryId = $('#edit_country_id').val();
         const countryData = {
             name: $('#edit_country_name').val(),
-            description: $('#edit_country_description').val()
+            description: $('#edit_country_description').val(),
+            category_ids: $('#edit_country_categories').val()
         };
         
         $.ajax({
@@ -450,16 +475,23 @@ $(document).ready(function() {
                     $('#purposeTable tbody').empty();
                     
                     if (response.purposes.length === 0) {
-                        $('#purposeTable tbody').html('<tr><td colspan="4" class="text-center">No purposes found</td></tr>');
+                        $('#purposeTable tbody').html('<tr><td colspan="5" class="text-center">No purposes found</td></tr>');
                         return;
                     }
                     
                     $.each(response.purposes, function(index, purpose) {
+                        // Extract category names for display
+                        let categoryNames = '';
+                        if (purpose.compatible_categories && purpose.compatible_categories.length > 0) {
+                            categoryNames = purpose.compatible_categories.map(cat => cat.name).join(', ');
+                        }
+
                         $('#purposeTable tbody').append(`
-                            <tr>
+                            <tr class="purpose-row" data-categories='${JSON.stringify(purpose.compatible_categories.map(c => c.id))}'>
                                 <td>${index + 1}</td>
                                 <td>${purpose.name}</td>
                                 <td>${purpose.description || '-'}</td>
+                                <td><span class="badge bg-info">${categoryNames || 'All Categories'}</span></td>
                                 <td>
                                     <button class="btn btn-sm btn-info edit-purpose" data-id="${purpose.id}">
                                         <i class="bx bx-edit"></i>
@@ -491,7 +523,8 @@ $(document).ready(function() {
         
         const purposeData = {
             name: $('#purpose_name').val(),
-            description: $('#purpose_description').val()
+            description: $('#purpose_description').val(),
+            category_ids: $('#purpose_categories').val()
         };
         
         $.ajax({
@@ -544,6 +577,13 @@ $(document).ready(function() {
                     $('#edit_purpose_id').val(response.purpose.id);
                     $('#edit_purpose_name').val(response.purpose.name);
                     $('#edit_purpose_description').val(response.purpose.description);
+                    
+                    // Set selected categories
+                    if (response.purpose.compatible_categories) {
+                        const categoryIds = response.purpose.compatible_categories.map(cat => cat.id);
+                        $('#edit_purpose_categories').val(categoryIds).trigger('change');
+                    }
+                    
                     $('#editPurposeModal').modal('show');
                 }
             },
@@ -566,7 +606,8 @@ $(document).ready(function() {
         const purposeId = $('#edit_purpose_id').val();
         const purposeData = {
             name: $('#edit_purpose_name').val(),
-            description: $('#edit_purpose_description').val()
+            description: $('#edit_purpose_description').val(),
+            category_ids: $('#edit_purpose_categories').val()
         };
         
         $.ajax({
@@ -663,17 +704,24 @@ $(document).ready(function() {
                     $('#featureTable tbody').empty();
                     
                     if (response.features.length === 0) {
-                        $('#featureTable tbody').html('<tr><td colspan="5" class="text-center">No features found</td></tr>');
+                        $('#featureTable tbody').html('<tr><td colspan="6" class="text-center">No features found</td></tr>');
                         return;
                     }
                     
                     $.each(response.features, function(index, feature) {
+                        // Extract category names for display
+                        let categoryNames = '';
+                        if (feature.compatible_categories && feature.compatible_categories.length > 0) {
+                            categoryNames = feature.compatible_categories.map(cat => cat.name).join(', ');
+                        }
+
                         $('#featureTable tbody').append(`
-                            <tr>
+                            <tr class="feature-row" data-categories='${JSON.stringify(feature.compatible_categories.map(c => c.id))}'>
                                 <td>${index + 1}</td>
                                 <td>${feature.name}</td>
                                 <td>${feature.description || '-'}</td>
                                 <td>${feature.points}</td>
+                                <td><span class="badge bg-info">${categoryNames || 'All Categories'}</span></td>
                                 <td>
                                     <button class="btn btn-sm btn-info edit-feature" data-id="${feature.id}">
                                         <i class="bx bx-edit"></i>
@@ -706,7 +754,8 @@ $(document).ready(function() {
         const featureData = {
             name: $('#feature_name').val(),
             description: $('#feature_description').val(),
-            points: $('#feature_points').val()
+            points: $('#feature_points').val(),
+            category_ids: $('#feature_categories').val()
         };
         
         $.ajax({
@@ -760,6 +809,13 @@ $(document).ready(function() {
                     $('#edit_feature_name').val(response.feature.name);
                     $('#edit_feature_description').val(response.feature.description);
                     $('#edit_feature_points').val(response.feature.points);
+                    
+                    // Set selected categories
+                    if (response.feature.compatible_categories) {
+                        const categoryIds = response.feature.compatible_categories.map(cat => cat.id);
+                        $('#edit_feature_categories').val(categoryIds).trigger('change');
+                    }
+                    
                     $('#editFeatureModal').modal('show');
                 }
             },
@@ -783,7 +839,8 @@ $(document).ready(function() {
         const featureData = {
             name: $('#edit_feature_name').val(),
             description: $('#edit_feature_description').val(),
-            points: $('#edit_feature_points').val()
+            points: $('#edit_feature_points').val(),
+            category_ids: $('#edit_feature_categories').val()
         };
         
         $.ajax({
@@ -868,7 +925,137 @@ $(document).ready(function() {
         });
     });
     
+    // ============== FILTERING FUNCTIONS ==============
+    
+    // Add filtering controls to each section
+    function addFilteringControls() {
+        // Add filter controls before each table
+        const filterHtml = `
+            <div class="mb-3">
+                <label class="form-label">Filter by Category:</label>
+                <select class="form-control category-filter">
+                    <option value="all">All Categories</option>
+                    <!-- Categories will be loaded dynamically -->
+                </select>
+            </div>
+        `;
+        
+        // Add filter before country table
+        $('#countryTable').before(filterHtml.replace('category-filter', 'country-category-filter'));
+        
+        // Add filter before purpose table
+        $('#purposeTable').before(filterHtml.replace('category-filter', 'purpose-category-filter'));
+        
+        // Add filter before feature table
+        $('#featureTable').before(filterHtml.replace('category-filter', 'feature-category-filter'));
+        
+        // Set up event handlers for filters
+        $('.country-category-filter').on('change', filterCountries);
+        $('.purpose-category-filter').on('change', filterPurposes);
+        $('.feature-category-filter').on('change', filterFeatures);
+    }
+    
+    // Filter countries by category
+    function filterCountries() {
+        const selectedCategory = $('.country-category-filter').val();
+        
+        if (selectedCategory === 'all') {
+            // Show all rows
+            $('.country-row').show();
+        } else {
+            // Filter rows
+            $('.country-row').each(function() {
+                const categoryIds = $(this).data('categories') || [];
+                
+                if (categoryIds.length === 0 || categoryIds.includes(parseInt(selectedCategory))) {
+                    $(this).show();
+                } else {
+                    $(this).hide();
+                }
+            });
+        }
+    }
+    
+    // Filter purposes by category
+    function filterPurposes() {
+        const selectedCategory = $('.purpose-category-filter').val();
+        
+        if (selectedCategory === 'all') {
+            // Show all rows
+            $('.purpose-row').show();
+        } else {
+            // Filter rows
+            $('.purpose-row').each(function() {
+                const categoryIds = $(this).data('categories') || [];
+                
+                if (categoryIds.length === 0 || categoryIds.includes(parseInt(selectedCategory))) {
+                    $(this).show();
+                } else {
+                    $(this).hide();
+                }
+            });
+        }
+    }
+    
+    // Filter features by category
+    function filterFeatures() {
+        const selectedCategory = $('.feature-category-filter').val();
+        
+        if (selectedCategory === 'all') {
+            // Show all rows
+            $('.feature-row').show();
+        } else {
+            // Filter rows
+            $('.feature-row').each(function() {
+                const categoryIds = $(this).data('categories') || [];
+                
+                if (categoryIds.length === 0 || categoryIds.includes(parseInt(selectedCategory))) {
+                    $(this).show();
+                } else {
+                    $(this).hide();
+                }
+            });
+        }
+    }
+    
     // ============== UTILITY FUNCTIONS ==============
+    
+    // Initialize Select2 for category selector dropdowns
+    function initializeSelect2() {
+        // Convert regular select dropdowns to Select2
+        $('.select2').select2({
+            placeholder: 'Select compatible categories',
+            allowClear: true,
+            width: '100%'
+        });
+    }
+    
+    // Populate category dropdowns in all modals
+    function populateCategoryDropdowns(categories) {
+        // Clear existing options except the first placeholder
+        $('.select2').each(function() {
+            $(this).empty();
+        });
+        
+        // Add categories to filter dropdowns
+        $('.country-category-filter, .purpose-category-filter, .feature-category-filter').each(function() {
+            const selectEl = $(this);
+            selectEl.find('option:not(:first)').remove();
+            
+            categories.forEach(function(category) {
+                selectEl.append(`<option value="${category.id}">${category.name}</option>`);
+            });
+        });
+        
+        // Add categories to form dropdowns
+        $('#country_categories, #edit_country_categories, #purpose_categories, #edit_purpose_categories, #feature_categories, #edit_feature_categories').each(function() {
+            const selectEl = $(this);
+            
+            categories.forEach(function(category) {
+                selectEl.append(`<option value="${category.id}">${category.name}</option>`);
+            });
+        });
+    }
     
     // Handle validation errors
     function handleValidationErrors(errors, prefix = '') {
@@ -883,5 +1070,8 @@ $(document).ready(function() {
     $('.modal').on('hidden.bs.modal', function() {
         $(this).find('form')[0].reset();
         $('.is-invalid').removeClass('is-invalid');
+        
+        // Reset Select2 controls
+        $(this).find('.select2').val(null).trigger('change');
     });
 }); 

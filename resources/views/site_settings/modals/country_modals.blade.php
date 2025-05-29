@@ -18,6 +18,14 @@
                         <textarea class="form-control" id="country_description" name="description" rows="3"></textarea>
                         <div class="invalid-feedback" id="country_description_error"></div>
                     </div>
+                    <div class="mb-3">
+                        <label for="country_categories" class="form-label">Compatible Site Categories</label>
+                        <select class="form-control select2" id="country_categories" name="category_ids[]" multiple>
+                            <!-- Categories will be loaded dynamically -->
+                        </select>
+                        <div class="form-text">Select which site categories this country is compatible with</div>
+                        <div class="invalid-feedback" id="country_categories_error"></div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -51,6 +59,14 @@
                         <label for="edit_country_description" class="form-label">Description</label>
                         <textarea class="form-control" id="edit_country_description" name="description" rows="3"></textarea>
                         <div class="invalid-feedback" id="edit_country_description_error"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_country_categories" class="form-label">Compatible Site Categories</label>
+                        <select class="form-control select2" id="edit_country_categories" name="category_ids[]" multiple>
+                            <!-- Categories will be loaded dynamically -->
+                        </select>
+                        <div class="form-text">Select which site categories this country is compatible with</div>
+                        <div class="invalid-feedback" id="edit_country_categories_error"></div>
                     </div>
                 </form>
             </div>

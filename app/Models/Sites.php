@@ -11,7 +11,6 @@ class Sites extends Model
     use HasFactory;
 
     protected $fillable = [
-        'name',
         'url',
         'description',
         'status',
