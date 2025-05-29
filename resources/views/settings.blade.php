@@ -64,7 +64,7 @@
             <div class="card">
                 <h5 class="card-header">Delete Account</h5>
                 <div class="card-body">
-                    <div class="mb-3 col-12 mb-0">
+                    <div class="mb-3 col-12">
                         <div class="alert alert-warning">
                             <h6 class="alert-heading fw-bold mb-1">Are you sure you want to delete your account?</h6>
                             <p class="mb-0">Once you request account deletion, your account will be deactivated and set for review by an administrator.</p>
@@ -104,21 +104,21 @@ document.addEventListener('DOMContentLoaded', function() {
     if (passwordForm) {
         passwordForm.addEventListener('submit', function(e) {
             e.preventDefault();
-            
+
             // Show spinner
             const spinner = document.getElementById('passwordSpinner');
             const btnText = document.getElementById('passwordBtnText');
             const submitBtn = document.getElementById('passwordUpdateBtn');
-            
+
             spinner.classList.remove('d-none');
             btnText.textContent = 'Saving...';
             submitBtn.disabled = true;
-            
+
             // Reset form errors
             resetFormErrors();
-            
+
             const formData = new FormData(passwordForm);
-            
+
             fetch(passwordForm.action, {
                 method: 'POST',
                 body: formData,
@@ -146,13 +146,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     timer: 3000,
                     showConfirmButton: false
                 });
-                
+
                 // Reset form
                 passwordForm.reset();
             })
             .catch(error => {
                 console.error('Error:', error);
-                
+
                 // Handle validation errors
                 if (error.errors) {
                     Object.keys(error.errors).forEach(field => {
@@ -179,13 +179,13 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
-    
+
     // Account Deactivation Form
     const deleteForm = document.getElementById('formAccountDeactivation');
     if (deleteForm) {
         deleteForm.addEventListener('submit', function(e) {
             e.preventDefault();
-            
+
             // First confirm with SweetAlert
             Swal.fire({
                 title: 'Are you sure?',
@@ -202,23 +202,23 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
-    
+
     function submitDeactivationForm() {
         // Show spinner
         const spinner = document.getElementById('deleteSpinner');
         const btnText = document.getElementById('deleteBtnText');
         const submitBtn = document.getElementById('deactivateAccountBtn');
-        
+
         spinner.classList.remove('d-none');
         btnText.textContent = 'Processing...';
         submitBtn.disabled = true;
-        
+
         // Reset form errors
         document.getElementById('delete_password').classList.remove('is-invalid');
         document.getElementById('delete_password_error').textContent = '';
-        
+
         const formData = new FormData(deleteForm);
-        
+
         fetch(deleteForm.action, {
             method: 'POST',
             body: formData,
@@ -251,7 +251,7 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(error => {
             console.error('Error:', error);
-            
+
             // Handle validation errors
             if (error.errors) {
                 if (error.errors.password) {
@@ -266,14 +266,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     text: 'An error occurred while processing your request. Please try again.',
                 });
             }
-            
+
             // Hide spinner
             spinner.classList.add('d-none');
             btnText.textContent = 'Deactivate Account';
             submitBtn.disabled = false;
         });
     }
-    
+
     function resetFormErrors() {
         // Reset password form errors
         const fields = ['current_password', 'password', 'password_confirmation'];
@@ -291,4 +291,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 @endpush
-</x-app-layout> 
+</x-app-layout>

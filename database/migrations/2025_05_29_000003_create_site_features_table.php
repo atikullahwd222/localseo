@@ -11,10 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('site_categories', function (Blueprint $table) {
+        Schema::create('site_features', function (Blueprint $table) {
             $table->id();
-            $table->string('name')->comment('Category name');
-            $table->text('description')->nullable()->comment('Category description');
+            $table->string('name')->comment('Feature name');
+            $table->text('description')->nullable()->comment('Feature description');
+            $table->integer('points')->default(1)->comment('Points for this feature');
             $table->timestamps();
         });
     }
@@ -24,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('site_categories');
+        Schema::dropIfExists('site_features');
     }
-};
+}; 

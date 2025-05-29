@@ -27,9 +27,9 @@ class AuthenticatedSessionController extends Controller
     public function store(LoginRequest $request)
     {
         try {
-            $request->authenticate();
+        $request->authenticate();
 
-            $request->session()->regenerate();
+        $request->session()->regenerate();
 
             if ($request->wantsJson()) {
                 return response()->json([
@@ -39,7 +39,7 @@ class AuthenticatedSessionController extends Controller
                 ]);
             }
 
-            return redirect()->intended(RouteServiceProvider::HOME);
+        return redirect()->intended(RouteServiceProvider::HOME);
         } catch (ValidationException $e) {
             if ($request->wantsJson()) {
                 return response()->json([

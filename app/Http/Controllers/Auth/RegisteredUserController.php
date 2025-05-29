@@ -32,20 +32,20 @@ class RegisteredUserController extends Controller
     {
         try {
             $validated = $request->validate([
-                'name' => ['required', 'string', 'max:255'],
-                'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
-                'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            ]);
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
+            'password' => ['required', 'confirmed', Rules\Password::defaults()],
+        ]);
 
-            $user = User::create([
-                'name' => $request->name,
-                'email' => $request->email,
-                'password' => Hash::make($request->password),
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
                 'status' => 'active', // Set default status as active
                 'photo' => 'assets/img/avatar/default.png', // Set default photo
-            ]);
+        ]);
 
-            event(new Registered($user));
+        event(new Registered($user));
             
             if ($request->wantsJson()) {
                 return response()->json([
@@ -55,7 +55,7 @@ class RegisteredUserController extends Controller
                 ]);
             }
 
-            return redirect()->route('login')
+        return redirect()->route('login')
                 ->with('status', 'Registration successful! Please login.');
         } catch (\Illuminate\Validation\ValidationException $e) {
             if ($request->wantsJson()) {

@@ -11,10 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('site_categories', function (Blueprint $table) {
+        Schema::create('work_purposes', function (Blueprint $table) {
             $table->id();
-            $table->string('name')->comment('Category name');
-            $table->text('description')->nullable()->comment('Category description');
+            $table->string('name')->comment('Purpose name');
+            $table->text('description')->nullable()->comment('Purpose description');
             $table->timestamps();
         });
     }
@@ -24,6 +24,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('site_categories');
+        Schema::dropIfExists('work_purposes');
     }
-};
+}; 

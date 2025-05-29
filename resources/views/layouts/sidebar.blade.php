@@ -22,17 +22,24 @@
             </a>
         </li>
 
-        <li class="menu-item {{ request()->routeIs('sites*') ? 'active' : '' }}">
+        <li class="menu-item {{ request()->routeIs('sites') ? 'active' : '' }}">
             <a href="{{ route('sites') }}" class="menu-link">
-                <i class="menu-icon tf-icons bx bx-home-circle"></i>
+                <i class="menu-icon tf-icons bx bx-globe"></i>
                 <div data-i18n="Analytics">Sites</div>
+            </a>
+        </li>
+        
+        <li class="menu-item {{ request()->routeIs('site.settings') ? 'active' : '' }}">
+            <a href="{{ route('site.settings') }}" class="menu-link">
+                <i class="menu-icon tf-icons bx bx-cog"></i>
+                <div data-i18n="Analytics">Site Settings</div>
             </a>
         </li>
 
         <!-- Account Settings -->
         <li class="menu-item">
             <a href="javascript:void(0);" class="menu-link menu-toggle">
-                <i class="menu-icon tf-icons bx bx-cog"></i>
+                <i class="menu-icon tf-icons bx bx-user-circle"></i>
                 <div data-i18n="Account Settings">Account Settings</div>
             </a>
             <ul class="menu-sub">
