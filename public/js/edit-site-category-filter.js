@@ -56,10 +56,17 @@ $(document).ready(function() {
         const $containers = $('#editSiteForm .compatibility-container');
         
         console.log('Found', $containers.length, 'compatibility containers in Edit form');
+        console.log('Hide incompatible options:', hide);
+        
+        // Find all unsupported options for logging
+        const unsupportedCount = $('#editSiteForm .form-check.unsupported-option').length;
+        const supportedCount = $('#editSiteForm .form-check').not('.unsupported-option').length;
+        console.log(`Edit form has ${unsupportedCount} unsupported options and ${supportedCount} supported options`);
         
         if (hide) {
             // Add class to containers
             $containers.addClass('hide-incompatible');
+            console.log('Added hide-incompatible class to containers');
             
             // Also apply direct CSS to all unsupported options for redundancy
             $('#editSiteForm .form-check.unsupported-option').css({
@@ -68,14 +75,17 @@ $(document).ready(function() {
             });
             
             // Make sure supported options are visible
-            $('#editSiteForm .form-check:not(.unsupported-option)').css({
+            $('#editSiteForm .form-check').not('.unsupported-option').css({
                 'display': '',
                 'visibility': 'visible',
                 'opacity': '1'
             });
+            
+            console.log('Applied direct CSS to hide unsupported options');
         } else {
             // Remove class from containers
             $containers.removeClass('hide-incompatible');
+            console.log('Removed hide-incompatible class from containers');
             
             // Reset direct CSS for unsupported options
             $('#editSiteForm .form-check.unsupported-option').css({
@@ -90,11 +100,17 @@ $(document).ready(function() {
                 'display': '',
                 'visibility': 'visible'
             });
+            
+            console.log('Applied direct CSS to show but dim unsupported options');
         }
         
         // Debug counts of visible and hidden options
-        console.log('Visible options in Edit form:', $('#editSiteForm .form-check:visible').length);
-        console.log('Hidden options in Edit form:', $('#editSiteForm .form-check:hidden').length);
+        setTimeout(function() {
+            const visibleCount = $('#editSiteForm .form-check:visible').length;
+            const hiddenCount = $('#editSiteForm .form-check:hidden').length;
+            console.log('After toggle - Visible options in Edit form:', visibleCount);
+            console.log('After toggle - Hidden options in Edit form:', hiddenCount);
+        }, 100);
         
         // Log the state of containers after change
         $containers.each(function(i) {

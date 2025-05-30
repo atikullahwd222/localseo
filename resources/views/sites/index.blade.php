@@ -85,9 +85,19 @@
             #editSiteForm .compatibility-container.hide-incompatible .unsupported-option,
             #filter_countriesContainer.hide-incompatible .unsupported-option,
             #step3 .border.hide-incompatible .unsupported-option,
-            #step4 .border.hide-incompatible .unsupported-option {
+            #step4 .border.hide-incompatible .unsupported-option,
+            div.hide-incompatible .form-check.unsupported-option,
+            .hide-incompatible .unsupported-option {
                 display: none !important;
                 visibility: hidden !important;
+            }
+
+            /* Ensure supported options are always visible */
+            #addSiteForm .form-check:not(.unsupported-option),
+            #editSiteForm .form-check:not(.unsupported-option) {
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
             }
 
             .compatibility-note {

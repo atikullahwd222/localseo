@@ -135,6 +135,8 @@ $(document).ready(function() {
             selectedCategoryIds.push(parseInt($(this).val()));
         });
         
+        console.log('Filtering compatible options based on selected categories:', selectedCategoryIds);
+        
         if (selectedCategoryIds.length === 0) {
             // If no categories selected, reset all options
             console.log('No categories selected, resetting all options');
@@ -184,7 +186,9 @@ $(document).ready(function() {
                 // Make sure compatible options are visible
                 $('#addSiteForm .form-check:not(.unsupported-option)').css({
                     'opacity': '1',
-                    'font-weight': 'normal'
+                    'font-weight': 'normal',
+                    'visibility': 'visible',
+                    'display': ''
                 });
                 
                 // Check if hide incompatible options is checked
@@ -198,9 +202,29 @@ $(document).ready(function() {
                     // Just style the unsupported options
                     $('#addSiteForm .form-check.unsupported-option').css({
                         'opacity': '0.5',
-                        'text-decoration': 'line-through'
+                        'text-decoration': 'line-through',
+                        'visibility': 'visible',
+                        'display': ''
                     });
                 }
+                
+                // Add blue info box to show filtering is active
+                $('#addSiteForm .compatibility-container').each(function() {
+                    const type = $(this).find('input').first().attr('class').split(' ')[1];
+                    if (!type) return;
+                    
+                    const compatibleCount = $(this).find('.form-check:not(.unsupported-option)').length;
+                    const totalCount = $(this).find('.form-check').length;
+                    
+                    if (!$(this).prev('.filtering-info-box').length) {
+                        const typeName = type.replace('add-', '');
+                        $(this).before(
+                            `<div class="filtering-info-box alert alert-info py-2 mb-2">
+                                Filtering options: Showing ${compatibleCount} compatible ${typeName}s out of ${totalCount}
+                            </div>`
+                        );
+                    }
+                });
                 
                 // Update compatibility notes with counts
                 updateCompatibilityNotes(response);
