@@ -37,6 +37,8 @@ Route::middleware(['auth', 'check.status'])->group(function () {
     Route::get('/sites', [SitesController::class, 'sites'])->name('sites');
     Route::get('/sites/fetch', [SitesController::class, 'fetchSite'])->name('sites.fetch');
     Route::get('/sites/compatible-options', [SitesController::class, 'getCompatibleOptions'])->name('sites.compatible-options');
+    Route::get('/sites/filter', [SitesController::class, 'filterSites'])->name('sites.filter');
+    Route::post('/sites/check-reachability', [SitesController::class, 'checkDomainReachability'])->name('sites.check-reachability');
     Route::post('/sites', [SitesController::class, 'storeSite'])->name('sites.store');
     Route::get('/sites/edit/{id}', [SitesController::class, 'editSite'])->name('sites.edit');
     Route::put('/sites/{id}', [SitesController::class, 'updateSite'])->name('sites.update');
@@ -75,10 +77,14 @@ Route::middleware(['auth', 'check.status'])->group(function () {
     Route::delete('/site-settings/features/{id}', [SiteSettingsController::class, 'deleteFeature'])->name('features.delete');
     
     // Site Rating Routes
-    Route::post('/site-settings/rating/{siteId}', [SiteSettingsController::class, 'updateSiteRating'])->name('site.rating.update');
+    Route::post('/site-settings/site-rating/{siteId}', [SiteSettingsController::class, 'updateSiteRating'])->name('site.rating.update');
     
     // Get all settings data for site creation
     Route::get('/site-settings/data', [SiteSettingsController::class, 'getSettingsData'])->name('site.settings.data');
+    
+    // Rating Settings Routes
+    Route::get('/site-settings/rating', [SiteSettingsController::class, 'getRatingSettings'])->name('rating.settings.get');
+    Route::put('/site-settings/rating', [SiteSettingsController::class, 'updateRatingSettings'])->name('rating.settings.update');
     
     // Compatibility Routes
     Route::get('/site-settings/categories/{id}/countries', [SiteSettingsController::class, 'getCompatibleCountries'])->name('categories.countries');
@@ -157,6 +163,7 @@ Route::middleware(['auth', 'check.status'])->group(function () {
     Route::get('/sites/fetch', [SitesController::class, 'fetchSite'])->name('sites.fetch');
     Route::get('/sites/compatible-options', [SitesController::class, 'getCompatibleOptions'])
         ->name('sites.compatible-options');
+    // Route::get('/sites/filter', [SitesController::class, 'filterSites'])->name('sites.filter');
 });
 
 Route::middleware(['auth', 'role:admin,editor', 'check.status'])->group(function () {
@@ -170,7 +177,6 @@ Route::middleware(['auth', 'role:admin,editor', 'check.status'])->group(function
 // Domain validation routes
 Route::middleware(['auth', 'check.status'])->group(function() {
     Route::get('/api/check-domain-exists', [SitesController::class, 'checkDomainExists'])->name('sites.check-domain');
-    Route::get('/api/check-domain-reachability', [SitesController::class, 'checkDomainReachability'])->name('sites.check-reachability');
 });
 
 require __DIR__.'/auth.php';

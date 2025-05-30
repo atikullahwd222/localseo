@@ -1,0 +1,121 @@
+/**
+ * Site Compatibility Filtering Styles
+ */
+
+/* Highlight container when compatibility filtering is active */
+.compatibility-active {
+    border-color: #0d6efd !important;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* Style for unsupported options */
+.form-check.unsupported-option {
+    opacity: 0.5;
+    text-decoration: line-through;
+}
+
+/* When hiding incompatible options is enabled */
+.compatibility-container.hide-incompatible .form-check.unsupported-option {
+    display: none !important;
+}
+
+/* Make sure supported options are always visible */
+.compatibility-container .form-check:not(.unsupported-option) {
+    opacity: 1;
+    text-decoration: none;
+}
+
+/* Loading indicator */
+.loading-indicator {
+    display: flex;
+    align-items: center;
+    font-size: 0.875rem;
+    color: #6c757d;
+}
+
+/* Compatibility notes */
+.compatibility-note {
+    font-size: 0.8rem;
+    color: #0d6efd;
+    margin-top: 0.5rem;
+}
+
+/* Ensure category badges are properly styled */
+#selectedCategoriesBadgesAddForm,
+#selectedCategoriesBadgesEditForm {
+    margin-top: 10px;
+}
+
+#selectedCategoriesBadgesAddForm .badge,
+#selectedCategoriesBadgesEditForm .badge {
+    font-size: 0.75rem;
+    padding: 0.35em 0.65em;
+}
+
+/* Modal loading state */
+.modal-content.loading {
+    position: relative;
+}
+
+.modal-content.loading::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.8);
+    z-index: 100;
+    border-radius: 5px;
+}
+
+.modal-content.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 50px;
+    height: 50px;
+    margin-top: -25px;
+    margin-left: -25px;
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #3498db;
+    border-radius: 50%;
+    z-index: 101;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Style for filtered rows to distinguish them */
+tr.filtered-row {
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+tr.filtered-row:hover {
+    background-color: rgba(13, 110, 253, 0.1);
+}
+
+/* Enhanced loading spinner for tables */
+#loading-spinner {
+    padding: 20px;
+    text-align: center;
+}
+
+#loading-spinner .spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+/* Style for edit and delete buttons to ensure they're clearly visible */
+.edit-btn, .delete-btn {
+    min-width: 40px;
+}
+
+/* Make sure the play video button is properly sized */
+.play-video-btn {
+    min-width: 70px;
+} 

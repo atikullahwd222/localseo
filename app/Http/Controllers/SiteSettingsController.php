@@ -7,6 +7,7 @@ use App\Models\Country;
 use App\Models\WorkPurpose;
 use App\Models\SiteFeature;
 use App\Models\Sites;
+use App\Models\SiteSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -656,12 +657,144 @@ class SiteSettingsController extends Controller
      */
     public function getCompatibleFeatures($categoryId)
     {
-        $category = SiteCategory::findOrFail($categoryId);
-        $compatibleFeatures = $category->compatibleFeatures;
+        $category = SiteCategory::with('compatibleFeatures')->findOrFail($categoryId);
+        
+        if ($category) {
+            return response()->json([
+                'status' => 200,
+                'features' => $category->compatibleFeatures,
+            ]);
+        } else {
+            return response()->json([
+                'status' => 404,
+                'message' => 'Category not found',
+            ]);
+        }
+    }
+    
+    /**
+     * Get rating settings
+     */
+    public function getRatingSettings()
+    {
+        $settings = SiteSetting::getGroup('rating');
+        
+        // Format settings into a more usable structure
+        $formattedSettings = [];
+        foreach ($settings as $setting) {
+            $formattedSettings[$setting->key] = $setting->value;
+        }
+        
+        // Set defaults if not found
+        if (!isset($formattedSettings['rating_scale'])) $formattedSettings['rating_scale'] = 10;
+        if (!isset($formattedSettings['rating_threshold_high'])) $formattedSettings['rating_threshold_high'] = 7;
+        if (!isset($formattedSettings['rating_threshold_medium'])) $formattedSettings['rating_threshold_medium'] = 4;
+        if (!isset($formattedSettings['rating_display_decimal_places'])) $formattedSettings['rating_display_decimal_places'] = 1;
         
         return response()->json([
             'status' => 200,
-            'compatibleFeatures' => $compatibleFeatures,
+            'settings' => $formattedSettings,
+            'rating_settings' => [
+                'scale' => (float) $formattedSettings['rating_scale'],
+                'thresholdHigh' => (float) $formattedSettings['rating_threshold_high'],
+                'thresholdMedium' => (float) $formattedSettings['rating_threshold_medium'],
+                'decimalPlaces' => (int) $formattedSettings['rating_display_decimal_places']
+            ]
+        ]);
+    }
+    
+    /**
+     * Update rating settings
+     */
+    public function updateRatingSettings(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'rating_scale' => 'required|numeric|min:1|max:100',
+            'rating_threshold_high' => 'required|numeric|min:0',
+            'rating_threshold_medium' => 'required|numeric|min:0',
+            'rating_display_decimal_places' => 'required|integer|min:0|max:5',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 400,
+                'errors' => $validator->messages(),
+            ]);
+        }
+        
+        // Ensure thresholds are logical
+        $ratingScale = (float) $request->input('rating_scale');
+        $thresholdHigh = (float) $request->input('rating_threshold_high');
+        $thresholdMedium = (float) $request->input('rating_threshold_medium');
+        
+        if ($thresholdHigh > $ratingScale) {
+            return response()->json([
+                'status' => 400,
+                'errors' => [
+                    'rating_threshold_high' => ['High threshold cannot be greater than the maximum rating scale']
+                ],
+            ]);
+        }
+        
+        if ($thresholdMedium > $thresholdHigh) {
+            return response()->json([
+                'status' => 400,
+                'errors' => [
+                    'rating_threshold_medium' => ['Medium threshold cannot be greater than the high threshold']
+                ],
+            ]);
+        }
+        
+        // Update settings
+        SiteSetting::set(
+            'rating_scale', 
+            $ratingScale, 
+            'rating', 
+            'The maximum value for normalized ratings', 
+            true
+        );
+        
+        SiteSetting::set(
+            'rating_threshold_high', 
+            $thresholdHigh, 
+            'rating', 
+            'Threshold for high ratings', 
+            true
+        );
+        
+        SiteSetting::set(
+            'rating_threshold_medium', 
+            $thresholdMedium, 
+            'rating', 
+            'Threshold for medium ratings', 
+            true
+        );
+        
+        SiteSetting::set(
+            'rating_display_decimal_places', 
+            (int) $request->input('rating_display_decimal_places'), 
+            'rating', 
+            'Number of decimal places to display in ratings', 
+            true
+        );
+        
+        // Optionally recalculate all site ratings
+        if ($request->input('recalculate_all_ratings', false)) {
+            $sites = Sites::all();
+            foreach ($sites as $site) {
+                $site->calculateRating();
+            }
+        }
+        
+        return response()->json([
+            'status' => 200,
+            'message' => 'Rating settings updated successfully!',
+            'rating_settings' => [
+                'scale' => $ratingScale,
+                'thresholdHigh' => $thresholdHigh,
+                'thresholdMedium' => $thresholdMedium,
+                'decimalPlaces' => (int) $request->input('rating_display_decimal_places')
+            ]
         ]);
     }
 } 

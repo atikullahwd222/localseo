@@ -64,8 +64,10 @@ $(document).ready(function() {
                     categories: selectedCategories,
                     option_types: ['countries', 'purposes', 'features'] // Use the expected array format
                 },
+                dataType: 'json',
                 success: function(response) {
                     console.log('Compatibility API response:', response);
+                    loadingIndicator.remove();
                     
                     if (response.success) {
                         // Update compatibility visuals
@@ -91,17 +93,18 @@ $(document).ready(function() {
                             if ($('#hideIncompatibleOptionsEdit').is(':checked')) {
                                 console.log('Auto-applying hide-incompatible in edit form');
                                 $('#editSiteForm .compatibility-container').addClass('hide-incompatible');
+                                $('#editSiteForm .form-check.unsupported-option').hide();
                             }
                         } else {
                             if ($('#hideIncompatibleOptions').is(':checked')) {
                                 console.log('Auto-applying hide-incompatible in add form');
                                 $('#addSiteForm .compatibility-container').addClass('hide-incompatible');
+                                $('#addSiteForm .form-check.unsupported-option').hide();
                             }
                         }
                     } else {
                         showCompatibilityError(badgeContainer, response.message || 'Unknown error occurred');
                     }
-                    loadingIndicator.remove();
                 },
                 error: function(xhr) {
                     console.error('Compatibility filtering error:', xhr.responseText);
@@ -211,10 +214,13 @@ $(document).ready(function() {
         $('#addSiteForm .compatibility-container').each(function() {
             if (isChecked) {
                 $(this).addClass('hide-incompatible');
-                console.log('Added hide-incompatible to container:', $(this).attr('class'));
+                $('#addSiteForm .form-check.unsupported-option').hide();
             } else {
                 $(this).removeClass('hide-incompatible');
-                console.log('Removed hide-incompatible from container:', $(this).attr('class'));
+                $('#addSiteForm .form-check.unsupported-option').show().css({
+                    'opacity': '0.5',
+                    'text-decoration': 'line-through'
+                });
             }
         });
     });
@@ -227,11 +233,28 @@ $(document).ready(function() {
         $('#editSiteForm .compatibility-container').each(function() {
             if (isChecked) {
                 $(this).addClass('hide-incompatible');
-                console.log('Added hide-incompatible to container:', $(this).attr('class'));
+                $('#editSiteForm .form-check.unsupported-option').hide();
             } else {
                 $(this).removeClass('hide-incompatible');
-                console.log('Removed hide-incompatible from container:', $(this).attr('class'));
+                $('#editSiteForm .form-check.unsupported-option').show().css({
+                    'opacity': '0.5',
+                    'text-decoration': 'line-through'
+                });
             }
         });
     });
+    
+    // Run initial compatibility filtering on page load with a slight delay
+    setTimeout(function() {
+        // Check if we're in the add or edit form by looking for inputs
+        if ($('.add-category').length > 0) {
+            console.log('Running initial compatibility filtering for add form');
+            updateCompatibilityFiltering('add');
+        }
+        
+        if ($('.edit-category').length > 0) {
+            console.log('Running initial compatibility filtering for edit form');
+            updateCompatibilityFiltering('edit');
+        }
+    }, 500);
 }); 

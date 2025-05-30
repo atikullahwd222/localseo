@@ -156,7 +156,13 @@
     @endsection
 
     @section('content')
+        <!-- Add site-compatibility.css stylesheet -->
+        <link rel="stylesheet" href="{{ asset('css/site-compatibility.css') }}">
+        
         <div class="container-fluid py-4">
+            <!-- Hidden input to check if user can manage sites -->
+            <input type="hidden" id="canManageSites" value="{{ auth()->user()->canManageSites() ? '1' : '0' }}">
+            
             <div class="row mb-4">
                 <div class="col-12">
                     <div class="card">
@@ -624,8 +630,8 @@
                                     <div id="ratingProgress" class="progress-bar" role="progressbar" style="width: 0%;"
                                         aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
                                 </div>
-                                <small class="text-muted">Total rating: <span id="currentRating">0</span> out of <span
-                                        id="maxRating">{{ $features->sum('points') }}</span> points</small>
+                                <small class="text-muted">Points: <span id="currentRating">0</span> out of <span
+                                        id="maxRating">{{ $features->sum('points') }}</span> | Normalized Rating: <span id="normalizedRating">0.0</span>/10</small>
                                 <span id="featureCompatibilityNoteAdd" class="compatibility-note d-none">
                                     <i class="fas fa-info-circle me-1"></i> Only showing options compatible with selected
                                     categories
@@ -871,8 +877,8 @@
                                         style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%
                                     </div>
                                 </div>
-                                <small class="text-muted">Total rating: <span id="edit_currentRating">0</span> out of
-                                    <span id="edit_maxRating">{{ $features->sum('points') }}</span> points</small>
+                                <small class="text-muted">Points: <span id="edit_currentRating">0</span> out of
+                                    <span id="edit_maxRating">{{ $features->sum('points') }}</span> | Normalized Rating: <span id="edit_normalizedRating">0.0</span>/10</small>
                                 <span id="featureCompatibilityNoteEdit" class="compatibility-note d-none">
                                     <i class="fas fa-info-circle me-1"></i> Only showing options compatible with selected
                                     categories
@@ -899,14 +905,15 @@
             // Global route URLs for JavaScript access
             window.routeUrls = {
                 checkReachability: "{{ route('sites.check-reachability') }}",
-                compatibleOptions: "{{ route('sites.compatible-options') }}"
+                compatibleOptions: "{{ route('sites.compatible-options') }}",
+                filter: "{{ route('sites.filter') }}",
+                edit: "{{ route('sites.edit', ['id' => ':id']) }}"
             };
         </script>
         <script src="{{ asset('js/site-compatibility.js') }}"></script>
         <script src="{{ asset('js/site-ratings.js') }}"></script>
         <script src="{{ asset('js/domain-checker.js') }}"></script>
-        <script src="{{ asset('js/add-site-category-filter.js') }}"></script>
-        <script src="{{ asset('js/edit-site-category-filter.js') }}"></script>
+        <script src="{{ asset('js/site-filter.js') }}"></script>
         <script src="{{ asset('js/site-form-handlers.js') }}"></script>
         <script>
             $(document).ready(function() {
@@ -1309,6 +1316,153 @@
                         }, 3000);
                     }
                 });
+            }
+
+            // Function to filter features based on selected categories
+            function filterFeaturesByCategories() {
+                const selectedCategories = [];
+                $('.filter-category:checked').each(function() {
+                    selectedCategories.push(parseInt($(this).val()));
+                });
+
+                if (selectedCategories.length === 0) {
+                    // Reset if no categories selected
+                    $('.filter-feature').closest('.form-check').removeClass('unsupported-option');
+                    return;
+                }
+
+                // Add loading indicator
+                const loadingHtml =
+                    '<div class="loading-indicator py-2 text-center"><div class="spinner-border spinner-border-sm text-primary me-2"></div><span>Loading compatible features...</span></div>';
+                $('#selectedCategoriesBadges3').append(loadingHtml);
+
+                // Fetch compatible features from server
+                $.ajax({
+                    type: "GET",
+                    url: routeUrls.compatibleOptions,
+                    data: {
+                        categories: selectedCategories,
+                        option_types: ['features']
+                    },
+                    dataType: "json",
+                    success: function(response) {
+                        // Remove loading indicator
+                        $('.loading-indicator').remove();
+
+                        if (!response.success) {
+                            // Show error
+                            const errorMsg = $(
+                                '<div class="alert alert-danger py-1 px-2 mt-1" style="font-size: 0.8rem;"><i class="fas fa-exclamation-triangle"></i> Error loading compatible features</div>'
+                                );
+                            $('#selectedCategoriesBadges3').append(errorMsg);
+
+                            // Remove after 3 seconds
+                            setTimeout(() => {
+                                errorMsg.fadeOut(300, function() {
+                                    $(this).remove();
+                                });
+                            }, 3000);
+                            return;
+                        }
+
+                        const compatibleFeatures = response.features || [];
+
+                        // First reset all options to remove any previous unsupported-option classes
+                        $('.filter-feature').closest('.form-check').removeClass('unsupported-option');
+
+                        // Track processed IDs to avoid duplicates
+                        const processedIds = new Set();
+
+                        // Mark compatible/incompatible features - IMPORTANT fix to target the form-check parent
+                        $('.filter-feature').each(function() {
+                            const featureId = parseInt($(this).val());
+
+                            // Skip if already processed
+                            if (processedIds.has(featureId)) {
+                                return;
+                            }
+                            processedIds.add(featureId);
+
+                            if (!compatibleFeatures.includes(featureId)) {
+                                // Uncheck and mark as incompatible
+                                $(this).prop('checked', false);
+                                // Apply unsupported-option class to the form-check parent
+                                $(this).closest('.form-check').addClass('unsupported-option');
+                            }
+                        });
+
+                        // Add note about filtered features
+                        const compatibilityNote = $(`
+                            <div class="compatibility-note mt-2">
+                                <i class="fas fa-filter me-1"></i>
+                                ${compatibleFeatures.length} compatible features shown
+                                <div class="form-check form-switch mt-1">
+                                    <input class="form-check-input" type="checkbox" id="hideIncompatibleFeatures">
+                                    <label class="form-check-label" for="hideIncompatibleFeatures">
+                                        <small>Hide incompatible features</small>
+                                    </label>
+                                </div>
+                            </div>
+                        `);
+
+                        $('#selectedCategoriesBadges3').append(compatibilityNote);
+
+                        // Handle hide incompatible option - make sure to use document to handle dynamically added elements
+                        $(document).on('change', '#hideIncompatibleFeatures', function() {
+                            if ($(this).is(':checked')) {
+                                $('#step4').find('.border').addClass('hide-incompatible');
+                            } else {
+                                $('#step4').find('.border').removeClass('hide-incompatible');
+                            }
+                        });
+                    },
+                    error: function(xhr) {
+                        // Remove loading indicator
+                        $('.loading-indicator').remove();
+
+                        // Show error
+                        const errorMsg = $(
+                            '<div class="alert alert-danger py-1 px-2 mt-1" style="font-size: 0.8rem;"><i class="fas fa-exclamation-triangle"></i> Error loading compatibility data</div>'
+                            );
+                        $('#selectedCategoriesBadges3').append(errorMsg);
+
+                        // Log error
+                        console.error('Error fetching compatible features:', xhr.responseText);
+
+                        // Remove after 3 seconds
+                        setTimeout(() => {
+                            errorMsg.fadeOut(300, function() {
+                                $(this).remove();
+                            });
+                        }, 3000);
+                    }
+                });
+            }
+
+            // Function to update selected categories badges
+            function updateSelectedCategoriesBadges() {
+                const selectedCategories = [];
+                $('.filter-category:checked').each(function() {
+                    selectedCategories.push({
+                        id: $(this).val(),
+                        name: $(this).data('category-name')
+                    });
+                });
+                
+                $('#selectedCategoriesBadges').empty();
+                
+                if (selectedCategories.length === 0) {
+                    $('#selectedCategoriesBadges').html('<div class="text-muted">No categories selected</div>');
+                    return;
+                }
+                
+                let html = '<div class="mb-2">Selected categories:</div>';
+                
+                selectedCategories.forEach(function(category) {
+                    html += `<span class="badge bg-primary me-1 mb-1 category-badge">${category.name}</span>`;
+                });
+                
+                $('#selectedCategoriesBadges').html(html);
             }
         </script>
     @endpush

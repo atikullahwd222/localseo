@@ -10,7 +10,7 @@ $(document).ready(function() {
     // Initial badges and state
     updateSelectedCategoriesBadges();
     
-    // Force initial filtering on page load - with a longer delay to ensure all elements are loaded
+    // Force initial filtering on page load - with a delay to ensure all elements are loaded
     setTimeout(function() {
         console.log('Checking for pre-selected categories...');
         const selectedCategories = $('.add-category:checked');
@@ -18,8 +18,15 @@ $(document).ready(function() {
         
         if (selectedCategories.length > 0) {
             console.log('Applying initial filtering for pre-selected categories');
-            filterCompatibleOptions();
-            // Apply hiding incompatible options on initialization since checkbox is checked by default
+            // Use the global function from site-compatibility.js
+            if (typeof updateCompatibilityFiltering === 'function') {
+                updateCompatibilityFiltering('add');
+            } else {
+                console.error('updateCompatibilityFiltering function not found');
+                filterCompatibleOptions(); // Fallback to local function
+            }
+            
+            // Apply hiding incompatible options on initialization
             toggleIncompatibleOptions($('#hideIncompatibleOptions').is(':checked'));
         }
     }, 800);
@@ -28,14 +35,28 @@ $(document).ready(function() {
     $('.add-category').on('change', function() {
         console.log('Category selection changed in Add form (direct binding)');
         updateSelectedCategoriesBadges();
-        filterCompatibleOptions();
+        
+        // Use the global function from site-compatibility.js
+        if (typeof updateCompatibilityFiltering === 'function') {
+            updateCompatibilityFiltering('add');
+        } else {
+            console.error('updateCompatibilityFiltering function not found');
+            filterCompatibleOptions(); // Fallback to local function
+        }
     });
     
     // Additional delegation binding for dynamically added elements
     $(document).on('change', '.add-category', function() {
         console.log('Category selection changed in Add form (delegation)');
         updateSelectedCategoriesBadges();
-        filterCompatibleOptions();
+        
+        // Use the global function from site-compatibility.js
+        if (typeof updateCompatibilityFiltering === 'function') {
+            updateCompatibilityFiltering('add');
+        } else {
+            console.error('updateCompatibilityFiltering function not found');
+            filterCompatibleOptions(); // Fallback to local function
+        }
     });
     
     // Direct binding for the toggle checkbox - higher priority
@@ -129,6 +150,7 @@ $(document).ready(function() {
     }
     
     // Filter compatible options based on selected categories
+    // This is a fallback method in case the global function isn't available
     function filterCompatibleOptions() {
         const selectedCategoryIds = [];
         $('.add-category:checked').each(function() {
@@ -198,159 +220,78 @@ $(document).ready(function() {
                 // Apply hiding if needed
                 if (hideIncompatible) {
                     toggleIncompatibleOptions(true);
-                } else {
-                    // Just style the unsupported options
-                    $('#addSiteForm .form-check.unsupported-option').css({
-                        'opacity': '0.5',
-                        'text-decoration': 'line-through',
-                        'visibility': 'visible',
-                        'display': ''
-                    });
                 }
-                
-                // Add blue info box to show filtering is active
-                $('#addSiteForm .compatibility-container').each(function() {
-                    const type = $(this).find('input').first().attr('class').split(' ')[1];
-                    if (!type) return;
-                    
-                    const compatibleCount = $(this).find('.form-check:not(.unsupported-option)').length;
-                    const totalCount = $(this).find('.form-check').length;
-                    
-                    if (!$(this).prev('.filtering-info-box').length) {
-                        const typeName = type.replace('add-', '');
-                        $(this).before(
-                            `<div class="filtering-info-box alert alert-info py-2 mb-2">
-                                Filtering options: Showing ${compatibleCount} compatible ${typeName}s out of ${totalCount}
-                            </div>`
-                        );
-                    }
-                });
-                
-                // Update compatibility notes with counts
-                updateCompatibilityNotes(response);
             },
             error: function(xhr, status, error) {
-                console.error('AJAX error:', status, error);
+                console.error('Error fetching compatible options:', error);
                 $('.loading-indicator').remove();
                 
                 // Show error message
                 $('#selectedCategoriesBadgesAddForm').append(
-                    '<div class="alert alert-danger py-1 px-2 mt-2 error-message">' +
-                    '<i class="fas fa-exclamation-triangle me-1"></i> Error loading compatibility data' +
-                    '</div>'
+                    `<div class="alert alert-danger py-1 px-2 mt-2 compatibility-error">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        Failed to load compatibility data: ${error}
+                    </div>`
                 );
                 
-                // Remove error after 3 seconds
+                // Auto-remove after 5 seconds
                 setTimeout(function() {
-                    $('.error-message').fadeOut(300, function() { $(this).remove(); });
-                }, 3000);
+                    $('.compatibility-error').fadeOut(300, function() { $(this).remove(); });
+                }, 5000);
             }
         });
     }
     
-    // Process compatible options for a specific type
+    // Helper function to process compatible options
     function processCompatibleOptions(selector, compatibleIds) {
-        if (!compatibleIds || compatibleIds.length === 0) {
-            console.log(`No compatible options for ${selector}`);
-            // If no compatible options, mark all as unsupported
+        console.log('Processing compatible', selector, 'with IDs:', compatibleIds);
+        
+        // Store which ones are marked as incompatible to prevent duplicate processing
+        const processedIncompatible = new Set();
+        
+        if (compatibleIds && compatibleIds.length > 0) {
+            // Mark all incompatible options
             $(selector).each(function() {
-                $(this).prop('checked', false);
-                const $formCheck = $(this).closest('.form-check');
-                $formCheck.addClass('unsupported-option');
+                const itemId = parseInt($(this).val());
+                if (!compatibleIds.includes(itemId) && !processedIncompatible.has(itemId)) {
+                    // Add to processed set
+                    processedIncompatible.add(itemId);
+                    
+                    // Apply styling to the parent form-check
+                    const $formCheck = $(this).closest('.form-check');
+                    $formCheck.addClass('unsupported-option');
+                    
+                    // Uncheck if it was checked
+                    if ($(this).is(':checked')) {
+                        $(this).prop('checked', false);
+                        console.log('Unchecked incompatible option:', itemId);
+                    }
+                }
             });
-            return;
+            
+            // Add compatibility note
+            const containerSelector = selector === '.add-country' ? '#countryCompatibilityNoteAdd' :
+                        selector === '.add-purpose' ? '#purposeCompatibilityNoteAdd' : 
+                        '#featureCompatibilityNoteAdd';
+            
+            $(containerSelector).removeClass('d-none');
         }
-        
-        console.log(`Processing ${compatibleIds.length} compatible options for ${selector}`);
-        
-        // First mark all as unsupported
-        $(selector).each(function() {
-            const $formCheck = $(this).closest('.form-check');
-            $formCheck.addClass('unsupported-option');
-            // Make sure it's unchecked
-            $(this).prop('checked', false);
-        });
-        
-        // Then mark compatible ones and ensure uniqueness
-        const processedIds = new Set(); // Keep track of processed IDs to avoid duplicates
-        
-        $(selector).each(function() {
-            const optionId = parseInt($(this).val());
-            
-            // Skip if we've already processed this ID
-            if (processedIds.has(optionId)) {
-                return;
-            }
-            
-            processedIds.add(optionId);
-            const $option = $(this);
-            const $formCheck = $option.closest('.form-check');
-            
-            if (compatibleIds.includes(optionId)) {
-                // This option is compatible
-                $formCheck.removeClass('unsupported-option');
-                console.log(`Marked as compatible: ${selector} id=${optionId}`);
-            } else {
-                // This option is not compatible with selected categories
-                $option.prop('checked', false); // Uncheck it
-                $formCheck.addClass('unsupported-option'); // Mark as unsupported
-                console.log(`Marked as unsupported: ${selector} id=${optionId}`);
-            }
-        });
     }
     
     // Reset all options to default state
     function resetAllOptions() {
-        // Remove unsupported-option class
-        $('.add-country, .add-purpose, .add-feature').closest('.form-check').removeClass('unsupported-option');
-        
-        // Reset all styling
-        $('#addSiteForm .form-check').css({
+        // Remove unsupported-option class from all form-checks
+        $('#addSiteForm .form-check').removeClass('unsupported-option').css({
             'opacity': '1',
             'text-decoration': 'none',
-            'font-weight': 'normal',
             'display': '',
             'visibility': 'visible'
         });
         
-        // Remove any filtering info boxes
-        $('.filtering-info-box').remove();
-    }
-    
-    // Update compatibility notes with counts
-    function updateCompatibilityNotes(response) {
-        const countryCount = response.countries ? response.countries.length : 0;
-        const purposeCount = response.purposes ? response.purposes.length : 0;
-        const featureCount = response.features ? response.features.length : 0;
-        
-        $('#countryCompatibilityNoteAdd').html(
-            `<i class="fas fa-info-circle me-1"></i> Showing ${countryCount} compatible countries`
-        ).removeClass('d-none');
-        
-        $('#purposeCompatibilityNoteAdd').html(
-            `<i class="fas fa-info-circle me-1"></i> Showing ${purposeCount} compatible work purposes`
-        ).removeClass('d-none');
-        
-        $('#featureCompatibilityNoteAdd').html(
-            `<i class="fas fa-info-circle me-1"></i> Showing ${featureCount} compatible features`
-        ).removeClass('d-none');
-    }
-    
-    // Initialize form when the modal is shown
-    $('#AddSiteModal').on('shown.bs.modal', function() {
-        // Reset form state
-        resetAllOptions();
-        $('.add-category').prop('checked', false);
-        $('.add-country, .add-purpose, .add-feature').prop('checked', false);
-        $('#hideIncompatibleOptions').prop('checked', true); // Default to checked
-        $('#selectedCategoriesBadgesAddForm').empty();
+        // Enable all checkboxes
+        $('.add-country, .add-purpose, .add-feature').prop('disabled', false);
         
         // Hide compatibility notes
-        $('#purposeCompatibilityNoteAdd, #countryCompatibilityNoteAdd, #featureCompatibilityNoteAdd').addClass('d-none');
-        
-        // Remove hide-incompatible class
-        $('#addSiteForm .compatibility-container').removeClass('hide-incompatible');
-        
-        console.log('Add Site modal shown - form initialized');
-    });
+        $('#countryCompatibilityNoteAdd, #purposeCompatibilityNoteAdd, #featureCompatibilityNoteAdd').addClass('d-none');
+    }
 }); 

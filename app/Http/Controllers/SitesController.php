@@ -6,6 +6,7 @@ use App\Models\SiteCategory;
 use App\Models\Country;
 use App\Models\WorkPurpose;
 use App\Models\SiteFeature;
+use App\Models\SiteSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -189,7 +190,9 @@ class SitesController extends Controller
 
         // Assign categories if they exist
         if ($request->has('categories') && is_array($request->categories)) {
-            $site->categories()->attach($request->categories);
+            // Ensure we don't have duplicate categories by using array_unique
+            $uniqueCategories = array_unique($request->categories);
+            $site->categories()->attach($uniqueCategories);
         }
 
         // Handle countries - now allowing both global flag and specific countries
@@ -209,7 +212,9 @@ class SitesController extends Controller
 
         // Assign work purposes if they exist
         if ($request->has('purposes') && is_array($request->purposes)) {
-            $site->workPurposes()->attach($request->purposes);
+            // Ensure we don't have duplicate purposes by using array_unique
+            $uniquePurposes = array_unique($request->purposes);
+            $site->workPurposes()->attach($uniquePurposes);
         }
 
         // Assign features if they exist
@@ -361,21 +366,65 @@ class SitesController extends Controller
 
     public function editSite($id)
     {
-        $site = Sites::with(['categories', 'countries', 'workPurposes', 'features'])->findOrFail($id);
-        
-        if($site){
-            // Get categories
-            $siteCategories = $site->categories->pluck('id')->toArray();
+        try {
+            \Log::info("Fetching site details for ID: {$id}");
             
-            // Get countries and check if global
-            $isGlobal = $site->isGlobal();
-            $siteCountries = $isGlobal ? [] : $site->countries->pluck('id')->toArray();
+            // First check if the site exists
+            if (!Sites::where('id', $id)->exists()) {
+                \Log::warning("Site with ID {$id} not found");
+                return response()->json([
+                    'status' => 404,
+                    'message' => 'Site not found',
+                ]);
+            }
             
-            // Get work purposes
-            $sitePurposes = $site->workPurposes->pluck('id')->toArray();
+            // Fetch the site with relationships step by step to identify issues
+            try {
+                $site = Sites::findOrFail($id);
+                \Log::info("Found site with ID {$id}: " . $site->url);
+            } catch (\Exception $e) {
+                \Log::error("Error fetching base site with ID {$id}: " . $e->getMessage());
+                throw $e;
+            }
             
-            // Get site features
-            $siteFeatures = $site->features()->wherePivot('has_feature', true)->pluck('id')->toArray();
+            // Now load relationships one by one
+            try {
+                $site->load('categories');
+                $siteCategories = $site->categories->pluck('id')->toArray();
+                \Log::info("Loaded categories for site {$id}");
+            } catch (\Exception $e) {
+                \Log::error("Error loading categories for site {$id}: " . $e->getMessage());
+                $siteCategories = [];
+            }
+            
+            try {
+                $site->load('countries');
+                $isGlobal = $site->isGlobal();
+                $siteCountries = $isGlobal ? [] : $site->countries->pluck('id')->toArray();
+                \Log::info("Loaded countries for site {$id}, isGlobal: " . ($isGlobal ? 'true' : 'false'));
+            } catch (\Exception $e) {
+                \Log::error("Error loading countries for site {$id}: " . $e->getMessage());
+                $isGlobal = false;
+                $siteCountries = [];
+            }
+            
+            try {
+                $site->load('workPurposes');
+                $sitePurposes = $site->workPurposes->pluck('id')->toArray();
+                \Log::info("Loaded work purposes for site {$id}");
+            } catch (\Exception $e) {
+                \Log::error("Error loading work purposes for site {$id}: " . $e->getMessage());
+                $sitePurposes = [];
+            }
+            
+            try {
+                $site->load('features');
+                $siteFeatures = $site->features()->wherePivot('has_feature', true)->pluck('id')->toArray();
+                \Log::info("Loaded features for site {$id}");
+            } catch (\Exception $e) {
+                \Log::error("Error loading features for site {$id}: " . $e->getMessage());
+                $siteFeatures = [];
+            }
             
             return response()->json([
                 'status' => 200,
@@ -386,10 +435,17 @@ class SitesController extends Controller
                 'site_purposes' => $sitePurposes,
                 'site_features' => $siteFeatures,
             ]);
-        } else {
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            \Log::error('Site not found: ' . $e->getMessage());
             return response()->json([
                 'status' => 404,
                 'message' => 'Site not found',
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error in editSite: ' . $e->getMessage() . ' - ' . $e->getTraceAsString());
+            return response()->json([
+                'status' => 500,
+                'message' => 'An error occurred while fetching site details: ' . $e->getMessage(),
             ]);
         }
     }
@@ -487,7 +543,9 @@ class SitesController extends Controller
         
         // Update work purposes
         if ($request->has('purposes')) {
-            $site->workPurposes()->sync($request->purposes);
+            // Make sure there are no duplicate purposes 
+            $uniquePurposes = array_unique($request->purposes);
+            $site->workPurposes()->sync($uniquePurposes);
         }
         
         // Update features if they exist
@@ -753,6 +811,189 @@ class SitesController extends Controller
                 'is_reachable' => false,
                 'message' => 'Error checking domain: ' . $e->getMessage()
             ]);
+        }
+    }
+
+    /**
+     * Filter sites based on categories, countries, purposes, and minimum rating
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function filterSites(Request $request)
+    {
+        try {
+            // Get filter parameters
+            $categories = $request->input('categories', []);
+            $isGlobal = (bool)$request->input('is_global', 0);
+            $countries = $request->input('countries', []);
+            $purposes = $request->input('purposes', []);
+            $minRating = (float)$request->input('min_rating', 0);
+            $sortByRating = (bool)$request->input('sort_by_rating', 1);
+            
+            // Get rating settings
+            $ratingSettings = SiteSetting::getRatingSettings();
+            $ratingScale = (float)$ratingSettings['rating_scale'];
+            $ratingThresholdHigh = (float)$ratingSettings['rating_threshold_high'];
+            $ratingThresholdMedium = (float)$ratingSettings['rating_threshold_medium'];
+            $ratingDecimalPlaces = (int)$ratingSettings['rating_display_decimal_places'];
+            
+            // Start query
+            $query = Sites::query()
+                ->with(['categories', 'countries', 'workPurposes', 'features']);
+            
+            // Filter by categories if provided
+            if (!empty($categories)) {
+                $query->whereHas('categories', function($q) use ($categories) {
+                    $q->whereIn('site_categories.id', $categories);
+                }, '=', count($categories)); // Ensure all selected categories are present
+            }
+            
+            // Filter by countries or global flag
+            if ($isGlobal) {
+                $query->where(function($q) {
+                    $q->whereHas('countries', function($subQ) {
+                        $subQ->where('site_country.is_global', 1);
+                    })->orDoesntHave('countries'); // Include sites that have no countries specified
+                });
+            } else if (!empty($countries)) {
+                $query->whereHas('countries', function($q) use ($countries) {
+                    $q->whereIn('countries.id', $countries);
+                });
+            }
+            
+            // Filter by purposes if provided
+            if (!empty($purposes)) {
+                $query->whereHas('workPurposes', function($q) use ($purposes) {
+                    $q->whereIn('work_purposes.id', $purposes);
+                });
+            }
+            
+            // Filter by minimum rating
+            if ($minRating > 0) {
+                $query->where(function($q) use ($minRating, $ratingScale) {
+                    // Calculate and compare the rating
+                    $siteIds = [];
+                    $sites = Sites::with(['features'])->get();
+                    
+                    foreach ($sites as $site) {
+                        $totalPoints = 0;
+                        $maxPoints = 0;
+                        
+                        // Check if site has any features
+                        if ($site->features->isNotEmpty()) {
+                            $totalPoints = $site->features->sum('points');
+                            $allFeatures = SiteFeature::all();
+                            $maxPoints = $allFeatures->sum('points');
+                        }
+                        
+                        // Calculate normalized rating using the dynamic scale
+                        $rating = 0;
+                        if ($maxPoints > 0) {
+                            $rating = ($totalPoints / $maxPoints) * $ratingScale;
+                        }
+                        
+                        // Compare with min rating
+                        if ($rating >= $minRating) {
+                            $siteIds[] = $site->id;
+                        }
+                    }
+                    
+                    $q->whereIn('id', $siteIds);
+                });
+            }
+            
+            // Apply ordering
+            if ($sortByRating) {
+                // Order sites by rating (need to calculate rating for each site)
+                $sites = $query->get();
+                
+                // Map sites to include calculated rating
+                $sitesWithRating = $sites->map(function($site) use ($ratingScale) {
+                    $totalPoints = 0;
+                    $maxPoints = 0;
+                    
+                    // Calculate rating based on features
+                    if ($site->features->isNotEmpty()) {
+                        $totalPoints = $site->features->sum('points');
+                        $allFeatures = SiteFeature::all();
+                        $maxPoints = $allFeatures->sum('points');
+                    }
+                    
+                    // Calculate normalized rating using the dynamic scale
+                    $rating = 0;
+                    if ($maxPoints > 0) {
+                        $rating = ($totalPoints / $maxPoints) * $ratingScale;
+                    }
+                    
+                    // Add rating to site data
+                    $site->rating = $rating;
+                    $site->max_rating = $ratingScale;
+                    return $site;
+                });
+                
+                // Sort by rating in descending order
+                $sortedSites = $sitesWithRating->sortByDesc('rating')->values();
+            } else {
+                // Order by created date if not sorting by rating
+                $sites = $query->orderBy('created_at', 'desc')->get();
+                
+                // Calculate ratings for display
+                $sortedSites = $sites->map(function($site) use ($ratingScale) {
+                    $totalPoints = 0;
+                    $maxPoints = 0;
+                    
+                    // Calculate rating based on features
+                    if ($site->features->isNotEmpty()) {
+                        $totalPoints = $site->features->sum('points');
+                        $allFeatures = SiteFeature::all();
+                        $maxPoints = $allFeatures->sum('points');
+                    }
+                    
+                    // Calculate normalized rating using the dynamic scale
+                    $rating = 0;
+                    if ($maxPoints > 0) {
+                        $rating = ($totalPoints / $maxPoints) * $ratingScale;
+                    }
+                    
+                    // Add rating to site data
+                    $site->rating = $rating;
+                    $site->max_rating = $ratingScale;
+                    return $site;
+                });
+            }
+            
+            // Transform sites to include simplified relationship data
+            $formattedSites = $sortedSites->map(function($site) use ($ratingDecimalPlaces) {
+                $siteData = $site->toArray();
+                $siteData['categories_list'] = $site->categories->pluck('name')->join(', ');
+                $siteData['is_global'] = $site->isGlobal();
+                $siteData['countries_list'] = $site->countryList();
+                $siteData['purposes_list'] = $site->workPurposes->pluck('name')->join(', ');
+                
+                // Format rating to specified decimal places
+                $siteData['rating'] = round($site->rating, $ratingDecimalPlaces);
+                
+                return $siteData;
+            });
+            
+            // Include rating settings in the response
+            return response()->json([
+                'success' => true,
+                'sites' => $formattedSites,
+                'rating_settings' => [
+                    'scale' => $ratingScale,
+                    'thresholdHigh' => $ratingThresholdHigh,
+                    'thresholdMedium' => $ratingThresholdMedium,
+                    'decimalPlaces' => $ratingDecimalPlaces
+                ]
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error in filterSites: ' . $e->getMessage() . ' - ' . $e->getTraceAsString());
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred: ' . $e->getMessage()
+            ], 500);
         }
     }
 }

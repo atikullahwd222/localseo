@@ -7,46 +7,69 @@
 $(document).ready(function() {
     console.log('Edit Site Category Filter JS loaded');
     
-    // Run initial check for pre-selected categories
+    // Initial badges and state
+    updateSelectedCategoriesBadgesEdit();
+    
+    // Force initial filtering on page load - with a delay to ensure all elements are loaded
     setTimeout(function() {
         console.log('Checking for pre-selected categories in Edit form...');
         const selectedCategories = $('.edit-category:checked');
-        console.log('Found ' + selectedCategories.length + ' pre-selected categories in Edit form');
+        console.log('Found ' + selectedCategories.length + ' pre-selected categories');
         
         if (selectedCategories.length > 0) {
             console.log('Applying initial filtering for pre-selected categories in Edit form');
-            updateSelectedCategoriesBadges();
-            filterCompatibleOptions();
-            // Apply hiding incompatible options on initialization since checkbox is checked by default
+            // Use the global function from site-compatibility.js
+            if (typeof updateCompatibilityFiltering === 'function') {
+                updateCompatibilityFiltering('edit');
+            } else {
+                console.error('updateCompatibilityFiltering function not found');
+                filterCompatibleOptions(); // Fallback to local function
+            }
+            
+            // Apply hiding incompatible options on initialization
             toggleIncompatibleOptions($('#hideIncompatibleOptionsEdit').is(':checked'));
         }
     }, 800);
     
-    // When a category is checked/unchecked in the edit form - use both direct binding and delegation
+    // When a category is checked/unchecked in the edit form
     $('.edit-category').on('change', function() {
         console.log('Category selection changed in Edit form (direct binding)');
-        updateSelectedCategoriesBadges();
-        filterCompatibleOptions();
+        updateSelectedCategoriesBadgesEdit();
+        
+        // Use the global function from site-compatibility.js
+        if (typeof updateCompatibilityFiltering === 'function') {
+            updateCompatibilityFiltering('edit');
+        } else {
+            console.error('updateCompatibilityFiltering function not found');
+            filterCompatibleOptions(); // Fallback to local function
+        }
     });
     
     // Additional delegation binding for dynamically added elements
     $(document).on('change', '.edit-category', function() {
         console.log('Category selection changed in Edit form (delegation)');
-        updateSelectedCategoriesBadges();
-        filterCompatibleOptions();
+        updateSelectedCategoriesBadgesEdit();
+        
+        // Use the global function from site-compatibility.js
+        if (typeof updateCompatibilityFiltering === 'function') {
+            updateCompatibilityFiltering('edit');
+        } else {
+            console.error('updateCompatibilityFiltering function not found');
+            filterCompatibleOptions(); // Fallback to local function
+        }
     });
     
-    // Direct binding for the toggle checkbox - higher priority
+    // Direct binding for the toggle checkbox
     $('#hideIncompatibleOptionsEdit').on('click', function() {
         const isChecked = $(this).is(':checked');
-        console.log('Hide incompatible direct click in Edit form:', isChecked);
+        console.log('Hide incompatible edit form direct click:', isChecked);
         toggleIncompatibleOptions(isChecked);
     });
 
     // Document level delegation as backup
     $(document).on('change', '#hideIncompatibleOptionsEdit', function() {
         const isChecked = $(this).is(':checked');
-        console.log('Hide incompatible change event in Edit form:', isChecked);
+        console.log('Hide incompatible edit form change event:', isChecked);
         toggleIncompatibleOptions(isChecked);
     });
     
@@ -55,18 +78,11 @@ $(document).ready(function() {
         // Get all compatibility containers in the form
         const $containers = $('#editSiteForm .compatibility-container');
         
-        console.log('Found', $containers.length, 'compatibility containers in Edit form');
-        console.log('Hide incompatible options:', hide);
-        
-        // Find all unsupported options for logging
-        const unsupportedCount = $('#editSiteForm .form-check.unsupported-option').length;
-        const supportedCount = $('#editSiteForm .form-check').not('.unsupported-option').length;
-        console.log(`Edit form has ${unsupportedCount} unsupported options and ${supportedCount} supported options`);
+        console.log('Found', $containers.length, 'compatibility containers in edit form');
         
         if (hide) {
             // Add class to containers
             $containers.addClass('hide-incompatible');
-            console.log('Added hide-incompatible class to containers');
             
             // Also apply direct CSS to all unsupported options for redundancy
             $('#editSiteForm .form-check.unsupported-option').css({
@@ -75,17 +91,14 @@ $(document).ready(function() {
             });
             
             // Make sure supported options are visible
-            $('#editSiteForm .form-check').not('.unsupported-option').css({
+            $('#editSiteForm .form-check:not(.unsupported-option)').css({
                 'display': '',
                 'visibility': 'visible',
                 'opacity': '1'
             });
-            
-            console.log('Applied direct CSS to hide unsupported options');
         } else {
             // Remove class from containers
             $containers.removeClass('hide-incompatible');
-            console.log('Removed hide-incompatible class from containers');
             
             // Reset direct CSS for unsupported options
             $('#editSiteForm .form-check.unsupported-option').css({
@@ -100,26 +113,15 @@ $(document).ready(function() {
                 'display': '',
                 'visibility': 'visible'
             });
-            
-            console.log('Applied direct CSS to show but dim unsupported options');
         }
         
         // Debug counts of visible and hidden options
-        setTimeout(function() {
-            const visibleCount = $('#editSiteForm .form-check:visible').length;
-            const hiddenCount = $('#editSiteForm .form-check:hidden').length;
-            console.log('After toggle - Visible options in Edit form:', visibleCount);
-            console.log('After toggle - Hidden options in Edit form:', hiddenCount);
-        }, 100);
-        
-        // Log the state of containers after change
-        $containers.each(function(i) {
-            console.log(`Edit form container ${i+1} classes:`, $(this).attr('class'));
-        });
+        console.log('Visible options in edit form:', $('#editSiteForm .form-check:visible').length);
+        console.log('Hidden options in edit form:', $('#editSiteForm .form-check:hidden').length);
     }
     
     // Show compatibility note when categories are selected
-    function updateSelectedCategoriesBadges() {
+    function updateSelectedCategoriesBadgesEdit() {
         const $container = $('#selectedCategoriesBadgesEditForm');
         $container.empty();
         
@@ -148,11 +150,14 @@ $(document).ready(function() {
     }
     
     // Filter compatible options based on selected categories
+    // This is a fallback method in case the global function isn't available
     function filterCompatibleOptions() {
         const selectedCategoryIds = [];
         $('.edit-category:checked').each(function() {
             selectedCategoryIds.push(parseInt($(this).val()));
         });
+        
+        console.log('Filtering compatible options based on selected categories in Edit form:', selectedCategoryIds);
         
         if (selectedCategoryIds.length === 0) {
             // If no categories selected, reset all options
@@ -203,7 +208,9 @@ $(document).ready(function() {
                 // Make sure compatible options are visible
                 $('#editSiteForm .form-check:not(.unsupported-option)').css({
                     'opacity': '1',
-                    'font-weight': 'normal'
+                    'font-weight': 'normal',
+                    'visibility': 'visible',
+                    'display': ''
                 });
                 
                 // Check if hide incompatible options is checked
@@ -213,162 +220,78 @@ $(document).ready(function() {
                 // Apply hiding if needed
                 if (hideIncompatible) {
                     toggleIncompatibleOptions(true);
-                } else {
-                    // Just style the unsupported options
-                    $('#editSiteForm .form-check.unsupported-option').css({
-                        'opacity': '0.5',
-                        'text-decoration': 'line-through'
-                    });
                 }
-                
-                // Add blue info box to show filtering is active
-                $('#editSiteForm .compatibility-container').each(function() {
-                    const type = $(this).find('input').first().attr('class').split(' ')[1];
-                    const compatibleCount = $(this).find('.form-check:not(.unsupported-option)').length;
-                    const totalCount = $(this).find('.form-check').length;
-                    
-                    if (!$(this).prev('.filtering-info-box').length && type) {
-                        const typeName = type.replace('edit-', '');
-                        $(this).before(
-                            `<div class="filtering-info-box alert alert-info py-2 mb-2">
-                                Filtering options: Showing ${compatibleCount} compatible ${typeName}s out of ${totalCount}
-                            </div>`
-                        );
-                    }
-                });
-                
-                // Update compatibility notes with counts
-                updateCompatibilityNotes(response);
             },
             error: function(xhr, status, error) {
-                console.error('AJAX error in Edit form:', status, error);
+                console.error('Error fetching compatible options for Edit form:', error);
                 $('.loading-indicator').remove();
                 
                 // Show error message
                 $('#selectedCategoriesBadgesEditForm').append(
-                    '<div class="alert alert-danger py-1 px-2 mt-2 error-message">' +
-                    '<i class="fas fa-exclamation-triangle me-1"></i> Error loading compatibility data' +
-                    '</div>'
+                    `<div class="alert alert-danger py-1 px-2 mt-2 compatibility-error">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        Failed to load compatibility data: ${error}
+                    </div>`
                 );
                 
-                // Remove error after 3 seconds
+                // Auto-remove after 5 seconds
                 setTimeout(function() {
-                    $('.error-message').fadeOut(300, function() { $(this).remove(); });
-                }, 3000);
+                    $('.compatibility-error').fadeOut(300, function() { $(this).remove(); });
+                }, 5000);
             }
         });
     }
     
-    // Process compatible options for a specific type
+    // Helper function to process compatible options
     function processCompatibleOptions(selector, compatibleIds) {
-        if (!compatibleIds || compatibleIds.length === 0) {
-            console.log(`No compatible options for ${selector} in Edit form`);
-            // If no compatible options, mark all as unsupported
+        console.log('Processing compatible', selector, 'with IDs:', compatibleIds);
+        
+        // Store which ones are marked as incompatible to prevent duplicate processing
+        const processedIncompatible = new Set();
+        
+        if (compatibleIds && compatibleIds.length > 0) {
+            // Mark all incompatible options
             $(selector).each(function() {
-                $(this).prop('checked', false);
-                const $formCheck = $(this).closest('.form-check');
-                $formCheck.addClass('unsupported-option');
+                const itemId = parseInt($(this).val());
+                if (!compatibleIds.includes(itemId) && !processedIncompatible.has(itemId)) {
+                    // Add to processed set
+                    processedIncompatible.add(itemId);
+                    
+                    // Apply styling to the parent form-check
+                    const $formCheck = $(this).closest('.form-check');
+                    $formCheck.addClass('unsupported-option');
+                    
+                    // Uncheck if it was checked
+                    if ($(this).is(':checked')) {
+                        $(this).prop('checked', false);
+                        console.log('Unchecked incompatible option in Edit form:', itemId);
+                    }
+                }
             });
-            return;
+            
+            // Add compatibility note
+            const containerSelector = selector === '.edit-country' ? '#countryCompatibilityNoteEdit' :
+                        selector === '.edit-purpose' ? '#purposeCompatibilityNoteEdit' : 
+                        '#featureCompatibilityNoteEdit';
+            
+            $(containerSelector).removeClass('d-none');
         }
-        
-        console.log(`Processing ${compatibleIds.length} compatible options for ${selector} in Edit form`);
-        
-        // First mark all as unsupported
-        $(selector).each(function() {
-            const $formCheck = $(this).closest('.form-check');
-            $formCheck.addClass('unsupported-option');
-            // Make sure it's unchecked
-            $(this).prop('checked', false);
-        });
-        
-        // Then mark compatible ones and ensure uniqueness
-        const processedIds = new Set(); // Keep track of processed IDs to avoid duplicates
-        
-        $(selector).each(function() {
-            const optionId = parseInt($(this).val());
-            
-            // Skip if we've already processed this ID
-            if (processedIds.has(optionId)) {
-                return;
-            }
-            
-            processedIds.add(optionId);
-            const $option = $(this);
-            const $formCheck = $option.closest('.form-check');
-            
-            if (compatibleIds.includes(optionId)) {
-                // This option is compatible
-                $formCheck.removeClass('unsupported-option');
-                console.log(`Marked as compatible in Edit form: ${selector} id=${optionId}`);
-            } else {
-                // This option is not compatible with selected categories
-                $option.prop('checked', false); // Uncheck it
-                $formCheck.addClass('unsupported-option'); // Mark as unsupported
-                console.log(`Marked as unsupported in Edit form: ${selector} id=${optionId}`);
-            }
-        });
-        
-        // Extra log to verify unsupported options
-        console.log(`Number of unsupported ${selector} options in Edit form:`, $(selector).closest('.form-check.unsupported-option').length);
-        console.log(`Number of supported ${selector} options in Edit form:`, $(selector).closest('.form-check:not(.unsupported-option)').length);
     }
     
     // Reset all options to default state
     function resetAllOptions() {
-        // Remove unsupported-option class
-        $('.edit-country, .edit-purpose, .edit-feature').closest('.form-check').removeClass('unsupported-option');
-        
-        // Reset all styling
-        $('#editSiteForm .form-check').css({
+        // Remove unsupported-option class from all form-checks
+        $('#editSiteForm .form-check').removeClass('unsupported-option').css({
             'opacity': '1',
             'text-decoration': 'none',
-            'font-weight': 'normal',
             'display': '',
             'visibility': 'visible'
         });
         
-        // Remove any filtering info boxes
-        $('#editSiteForm .filtering-info-box').remove();
+        // Enable all checkboxes
+        $('.edit-country, .edit-purpose, .edit-feature').prop('disabled', false);
+        
+        // Hide compatibility notes
+        $('#countryCompatibilityNoteEdit, #purposeCompatibilityNoteEdit, #featureCompatibilityNoteEdit').addClass('d-none');
     }
-    
-    // Update compatibility notes with counts
-    function updateCompatibilityNotes(response) {
-        const countryCount = response.countries ? response.countries.length : 0;
-        const purposeCount = response.purposes ? response.purposes.length : 0;
-        const featureCount = response.features ? response.features.length : 0;
-        
-        $('#countryCompatibilityNoteEdit').html(
-            `<i class="fas fa-info-circle me-1"></i> Showing ${countryCount} compatible countries`
-        ).removeClass('d-none');
-        
-        $('#purposeCompatibilityNoteEdit').html(
-            `<i class="fas fa-info-circle me-1"></i> Showing ${purposeCount} compatible work purposes`
-        ).removeClass('d-none');
-        
-        $('#featureCompatibilityNoteEdit').html(
-            `<i class="fas fa-info-circle me-1"></i> Showing ${featureCount} compatible features`
-        ).removeClass('d-none');
-    }
-    
-    // Initialize form when the modal is shown
-    $('#EditModal').on('shown.bs.modal', function() {
-        console.log('Edit Site modal shown - checking existing categories');
-        
-        // Reset filtering info boxes
-        $('#editSiteForm .filtering-info-box').remove();
-        
-        // If categories are already selected, filter options
-        if ($('.edit-category:checked').length > 0) {
-            setTimeout(function() {
-                updateSelectedCategoriesBadges();
-                filterCompatibleOptions();
-                // Apply hiding incompatible options on initialization since checkbox is checked by default
-                toggleIncompatibleOptions(true);
-            }, 500);
-        } else {
-            // Make sure all options are visible if no categories selected
-            resetAllOptions();
-        }
-    });
 }); 

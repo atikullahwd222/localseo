@@ -58,13 +58,13 @@ $(document).ready(function() {
         $message.html('<i class="fas fa-spinner fa-spin me-2"></i> Checking domain reachability...');
         
         // Check domain reachability with hardcoded URL as fallback
-        const checkReachabilityUrl = routeUrls.checkReachability || '/api/check-domain-reachability';
+        const checkReachabilityUrl = window.routeUrls.checkReachability || '/sites/check-reachability';
         console.log('Using URL:', checkReachabilityUrl);
         
         // Check domain reachability
         $.ajax({
             url: checkReachabilityUrl,
-            type: 'GET',
+            type: 'POST',
             data: { domain: domain },
             success: function(response) {
                 console.log('Domain check response:', response);
